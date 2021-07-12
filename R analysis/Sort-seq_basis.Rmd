@@ -1,0 +1,91 @@
+---
+title: "Sort-seq analysis"
+---
+
+```{r load libraries,message=FALSE}
+library(pheatmap) # v 1.0.12
+library(ggplot2) # v 3.3.2
+library(cowplot) # v 1.0.0
+```
+
+Read in counts table, remove random last row, average multiple unsorted columns where needed
+```{r Read in counts tables}
+sortseq_scr1 <- read.table('../Mapping/output/counts_sortseq_scr1.txt',stringsAsFactors=F)
+sortseq_scr1$unsorted <- sortseq_scr1$unsorted_high + .25* sortseq_scr1$unsorted_low  
+                                # High started with ~3x more material,so give more weight
+sortseq_scr1 <- sortseq_scr1[-nrow(sortseq_scr1),-c(7,8)]
+
+sortseq_scr2 <- read.table('../Mapping/output/counts_sortseq_scr2.txt',stringsAsFactors=F)
+sortseq_scr2 <- sortseq_scr2[-nrow(sortseq_scr2),]
+```
+
+Using one function, do filtering, normalizations and calculate sort-seq scores
+```{r Write and apply function to calculate sort-seq scores}
+filter_norm_score <- function(table,  # Dataframe with 1 column per bin, then 'unsorted' column last
+                              cutoff = 1e-5 # Use lower cutoff for screen 2, which was sequenced deeply.
+                              ) {
+  table_scaled <- as.data.frame(scale(table, colSums(table), center=F))
+  linearmodel <- lm(formula = unsorted ~ . + 0,       # model fits unsorted column using all other columns
+                  data = table_scaled[table_scaled$unsorted> cutoff &
+                                               rowSums(table_scaled[,1:6])> cutoff,])
+  table_lmnorm <- as.data.frame(scale(table_scaled,1/c(linearmodel$coefficients/sum(linearmodel$coefficients),1),
+                                      center=F))
+  table_lmnorm[table_scaled$unsorted <= cutoff | 
+                          rowSums(table_scaled[,colnames(table_scaled)!="unsorted"]) <= cutoff,] <- NA
+  normalized_table <- t(scale(t(table_lmnorm[,colnames(table_scaled)!="unsorted"]),
+                                rowSums(table_lmnorm[,colnames(table_scaled)!="unsorted"]),
+                             center=F))
+  fit <- cor(rowSums(table_lmnorm[,colnames(table_scaled)!="unsorted"]),table_lmnorm$unsorted,use="complete.obs")
+  sortseq_scores <- apply(normalized_table,MAR=1,function(x){
+      score <- 0
+      for (i in 1:length(x)) {score <- score + i * x[i] }
+      score
+    })
+  list('norm_table'=normalized_table, 'sortseq_scores'=sortseq_scores,'fit'=fit)
+  }
+
+screen1_results <- filter_norm_score(sortseq_scr1)
+screen1_results$fit # Pearson correlation between model prediction and unsorted data for screen 1
+screen2_results <- filter_norm_score(sortseq_scr2,cutoff=5e-6) # Adjusted cutoff because of deeper sequencing
+screen2_results$fit # Pearson correlation between model prediction and unsorted data for screen 2
+
+sortseq_scores <- data.frame('sortseq_screen1'=screen1_results$sortseq_scores,'sortseq_screen2'=screen2_results$sortseq_scores)
+
+cor(sortseq_scores$sortseq_screen1,sortseq_scores$sortseq_screen2,use="complete.obs",method="pearson")
+cor(sortseq_scores$sortseq_screen1,sortseq_scores$sortseq_screen2,use="complete.obs",method="spearman")
+
+save(sortseq_scores,file="output/sortseq_scores.RData")
+```
+
+Plot heatmaps. First two 
+```{r Plot heatmaps}
+heatmap_screen1 <- pheatmap(screen1_results$norm_table[!is.na(rowSums(sortseq_scores)),][
+                  order(sortseq_scores$sortseq_screen1[!is.na(rowSums(sortseq_scores))],decreasing=T),],
+        col=colorRampPalette(c("white", "black"))(n = 101),breaks=seq(0,1,by=.01),
+        border_color=NA, show_colnames=FALSE, show_rownames=FALSE, cluster_rows=FALSE,cluster_cols=FALSE,
+        main="screen 1, ranked on screen1 lm-norm")
+heatmap_screen2 <- pheatmap(screen2_results$norm_table[!is.na(rowSums(sortseq_scores)),][
+                  order(sortseq_scores$sortseq_screen1[!is.na(rowSums(sortseq_scores))],decreasing=T),],
+        col=colorRampPalette(c("white", "black"))(n = 101),breaks=seq(0,1,by=.01),
+        border_color=NA, show_colnames=FALSE, show_rownames=FALSE, cluster_rows=FALSE,cluster_cols=FALSE,
+        main="screen 2, ranked on screen1 lm-norm")
+
+heatmap_screen1 <- 
+  pheatmap(screen1_results$norm_table[!is.na(rowSums(sortseq_scores)),][
+                  order(rowSums(sortseq_scores)[!is.na(rowSums(sortseq_scores))],decreasing=T),],
+        col=colorRampPalette(c("white", "black"))(n = 101),breaks=seq(0,1,by=.01),
+        border_color=NA, show_colnames=FALSE, show_rownames=FALSE, cluster_rows=FALSE,cluster_cols=FALSE,
+        main="screen 1, ranked on average sort-seq score")
+heatmap_screen2 <- 
+  pheatmap(screen2_results$norm_table[!is.na(rowSums(sortseq_scores)),][
+                  order(rowSums(sortseq_scores)[!is.na(rowSums(sortseq_scores))],decreasing=T),],
+        col=colorRampPalette(c("white", "black"))(n = 101),breaks=seq(0,1,by=.01),
+        border_color=NA, show_colnames=FALSE, show_rownames=FALSE, cluster_rows=FALSE,cluster_cols=FALSE,
+        main="screen 2, ranked on average sort-seq score")
+
+g_lm_rank <- plot_grid(heatmap_screen1[[4]],NULL,
+                          heatmap_screen2[[4]],
+                          nrow = 1,
+                          rel_widths = c(1, 0.2, 1)
+                  )
+```

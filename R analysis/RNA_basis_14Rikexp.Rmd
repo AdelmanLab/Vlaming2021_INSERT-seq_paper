@@ -1,0 +1,122 @@
+---
+title: "RNA basis"
+output: html_document
+---
+
+```{r load libraries,message=FALSE}
+library(scales) # v 1.0.0
+```
+
+Reading in counts. I've added the first replicate of the 14Rik experiment in these files to have all in one place.
+```{r read in counts}
+counts_RNA_14Rik <- read.table('../Mapping/output/counts_14Rik_RNA.txt',stringsAsFactors=F)
+
+counts_RNA_14Rik_scaled <- as.data.frame(scale(counts_RNA_14Rik[-nrow(counts_RNA_14Rik),],
+                                         colSums(counts_RNA_14Rik), center=F))
+
+counts_gDNA_1029 <- read.table('../Mapping/output/counts_14Rik_gDNA.txt',stringsAsFactors=F)
+counts_gDNA_14Rik <- counts_gDNA_1029[,1:3]
+counts_gDNA_14Rik_scaled <- as.data.frame(scale(counts_gDNA_14Rik[-nrow(counts_gDNA_14Rik),],
+                                          colSums(counts_gDNA_14Rik), center=F))
+```
+
+Put unspliced and spliced versions in side-by-side columns, calculate the totals
+```{r Unspliced-spliced side-by-side}
+RNA_perinsert <- as.data.frame(matrix(0,nrow=nrow(counts_gDNA_14Rik_scaled),ncol=ncol(counts_RNA_14Rik_scaled)*6))
+colnames(RNA_perinsert) <-
+          paste(rep(colnames(counts_RNA_14Rik_scaled),each=6),
+                c('unspliced',paste0('spliced',1:3),'splicedtotal','total'),sep="_")
+rownames(RNA_perinsert) <- rownames(counts_gDNA_14Rik_scaled)
+RNA_perinsert[,paste(colnames(counts_RNA_14Rik_scaled),'unspliced',sep="_")] <-
+  counts_RNA_14Rik_scaled[1:nrow(counts_gDNA_14Rik_scaled),]
+
+for(sample in colnames(counts_RNA_14Rik_scaled)) {
+	for(i in 1:3){
+		RNA_perinsert[,paste0(sample,'_spliced',i)] <-
+			sapply(rownames(RNA_perinsert),function(x){
+      				counts_RNA_14Rik_scaled[paste0(x,'_spliced',i),sample]
+    	})
+	}
+  RNA_perinsert[,paste0(sample,'_splicedtotal')] <- 
+    rowSums(RNA_perinsert[,grep(paste0(sample,'_spliced.$'),colnames(RNA_perinsert))],na.rm=T)
+  RNA_perinsert[,paste0(sample,'_total')] <-
+    rowSums(RNA_perinsert[,c(paste0(sample,'_unspliced'),paste0(sample,'_splicedtotal'))],na.rm=T)
+}
+```
+
+Normalize to gDNA
+```{r Cutoff and norm to gDNA}
+# These are thresholds I settled on to balance improving correlation between experiments and not losing too much data.
+thresholds <- rep(2e-6, 3)
+names(thresholds) <- colnames(counts_gDNA_14Rik_scaled)
+
+RNA_over_gDNA <- RNA_perinsert
+for(experiment in c('14Rik_repl1','14Rik_1005','14Rik_1007','si.')) {
+	RNA_over_gDNA[,grep(experiment,colnames(RNA_over_gDNA))] <-
+	  RNA_over_gDNA[,grep(experiment,colnames(RNA_over_gDNA))] /
+                       	       counts_gDNA_14Rik_scaled[,grep(experiment,colnames(counts_gDNA_14Rik_scaled))]
+	RNA_over_gDNA[counts_gDNA_14Rik_scaled[,grep(experiment,colnames(counts_gDNA_14Rik_scaled))] <
+	                thresholds[grep(experiment,names(thresholds))],
+	              grep(experiment,colnames(RNA_over_gDNA))] <- NA
+}
+```
+
+Set median of randomized controls to 1
+```{r Norm to randomized controls}
+load('../R analysis/input/HV20200429_full_library.RData')
+controls <- full_library$unique_id[full_library$category=="randomized_control"]
+
+RNA_over_ctrl <- RNA_over_gDNA
+for(sample in colnames(counts_RNA_14Rik_scaled)){
+  RNA_over_ctrl[,grep(sample,colnames(RNA_over_ctrl))] <- 
+    RNA_over_gDNA[,grep(sample,colnames(RNA_over_gDNA))] / 
+      median(RNA_over_gDNA[controls, paste(sample,'total',sep="_")],na.rm=T)
+}
+```
+
+Calculate splicing efficiencies
+```{r Splicing efficiencies}
+splicingefficiencies <- data.frame("repl1_splicingefficiency"=
+                                     RNA_over_ctrl$RNA_14Rik_repl1_splicedtotal / RNA_over_ctrl$RNA_14Rik_repl1_total,
+                                   "repl1005_splicingefficiency"=
+                                     RNA_over_ctrl$RNA_14Rik_1005_splicedtotal / RNA_over_ctrl$RNA_14Rik_1005_total,
+                                   "repl1007_splicingefficiency"=
+                                     RNA_over_ctrl$RNA_14Rik_1007_splicedtotal / RNA_over_ctrl$RNA_14Rik_1007_total)
+RNA_over_ctrl <- cbind(RNA_over_ctrl,splicingefficiencies)
+```
+
+Correlations between replicates after all normalizations
+```{r Correlations}
+cor(RNA_over_ctrl[,grep('_total',colnames(RNA_over_ctrl))],use="complete.obs",method="spearman")
+```
+
+Add pseudocounts to everything with < 2e-3 normalized counts
+```{r Pseudocounts}
+RNA_over_ctrl_pseudo <- RNA_over_ctrl
+RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))][
+    RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))]< 2e-3] <- 2e-3
+```
+
+Plots after all normalizations and adding pseudocounts
+```{r Correlation plots w pseudocounts}
+plot(log(RNA_over_ctrl_pseudo$RNA_14Rik_repl1_total,2),
+     log(RNA_over_ctrl_pseudo$RNA_14Rik_1007_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-7,5),ylim=c(-7,5),
+     main="Total-RNA: 14Rik replicates",xlab="Total-RNA repl1 (log2)",ylab="Total-RNA 10/7 (log2)")
+plot(log(RNA_over_ctrl_pseudo$RNA_14Rik_1005_total,2),
+     log(RNA_over_ctrl_pseudo$RNA_14Rik_1007_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-7,5),ylim=c(-7,5),
+     main="Total-RNA: 14Rik replicates",xlab="Total-RNA 10/5 (log2)",ylab="Total-RNA 10/7 (log2)")
+
+# Table with totals only
+# Add splicing efficiency from previous uaRNA results (may still want to treat 14Rik seperately)
+RNA_over_ctrl_totals_14Rik <- RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))]
+
+RNA_over_ctrl_14Rik <- RNA_over_ctrl
+RNA_over_ctrl_pseudo_14Rik <- RNA_over_ctrl_pseudo
+```
+
+Save
+```{r Save}
+save(RNA_over_ctrl_14Rik,RNA_over_ctrl_pseudo_14Rik,RNA_over_ctrl_totals_14Rik,file="output/normalized_RNA_14Rik.RData")
+```

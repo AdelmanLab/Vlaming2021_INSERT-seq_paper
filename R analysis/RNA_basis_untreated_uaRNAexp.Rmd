@@ -1,0 +1,174 @@
+---
+title: "RNA basis untreated uaRNA experiments"
+output: html_document
+---
+
+```{r load libraries,message=FALSE}
+library(scales) # v 1.0.0
+```
+
+```{r read in counts}
+counts_RNA <- read.table('../Mapping/output/counts_RNA_untreated_uaRNAscreens.txt',stringsAsFactors=F)
+counts_RNA_scaled <- as.data.frame(scale(counts_RNA[-nrow(counts_RNA),],
+                                         colSums(counts_RNA), center=F))
+
+counts_gDNA <- read.table('../Mapping/output/counts_gDNA_forRNA_untreated_uaRNAscreens.txt',stringsAsFactors=F)
+counts_gDNA_scaled <- as.data.frame(scale(counts_gDNA[-nrow(counts_gDNA),],
+                                          colSums(counts_gDNA), center=F))
+```
+
+Put unspliced and spliced versions in side-by-side columns, calculate the totals
+```{r Unspliced-spliced side-by-side}
+RNA_perinsert <- as.data.frame(matrix(0,nrow=nrow(counts_gDNA_scaled),ncol=ncol(counts_RNA_scaled)*6))
+colnames(RNA_perinsert) <-
+          paste(rep(colnames(counts_RNA_scaled),each=6),
+                c('unspliced',paste0('spliced',1:3),'splicedtotal','total'),sep="_")
+rownames(RNA_perinsert) <- rownames(counts_gDNA_scaled)
+RNA_perinsert[,paste(colnames(counts_RNA_scaled),'unspliced',sep="_")] <-
+  counts_RNA_scaled[1:nrow(counts_gDNA_scaled),]
+
+for(sample in colnames(counts_RNA_scaled)) {
+	for(i in 1:3){
+		RNA_perinsert[,paste0(sample,'_spliced',i)] <-
+			sapply(rownames(RNA_perinsert),function(x){
+      				counts_RNA_scaled[paste0(x,'_spliced',i),sample]
+    	})
+	}
+  RNA_perinsert[,paste0(sample,'_splicedtotal')] <- 
+    rowSums(RNA_perinsert[,grep(paste0(sample,'_spliced.$'),colnames(RNA_perinsert))],na.rm=T)
+  RNA_perinsert[,paste0(sample,'_total')] <-
+    rowSums(RNA_perinsert[,c(paste0(sample,'_unspliced'),paste0(sample,'_splicedtotal'))],na.rm=T)
+}
+```
+
+Normalize to gDNA
+```{r Cutoff and norm to gDNA}
+# These are thresholds I settled on to balance improving correlation between experiments and not losing too much data.
+thresholds <- c("gDNA_1"=1e-5,"gDNA_2"=2e-6,"gDNA_3"=2e-6,"gDNA_4"=2e-6,"gDNA_5"=2e-6) 
+
+RNA_over_gDNA <- RNA_perinsert
+for(experiment in c('_1','_2','_3','_4','_5')) {
+	RNA_over_gDNA[,grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] <-
+	  RNA_over_gDNA[,grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] /
+                       	       counts_gDNA_scaled[,grep(paste0(experiment,"$"),colnames(counts_gDNA_scaled))]
+	RNA_over_gDNA[counts_gDNA_scaled[,grep(paste0(experiment,"$"),colnames(counts_gDNA_scaled))] <
+	                thresholds[grep(paste0(experiment,"$"),names(thresholds))],
+	              grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] <- NA
+}
+
+plot(log(RNA_over_gDNA$totalRNA_2_total,10),log(RNA_over_gDNA$totalRNA_1_total,10),pch=16,col=alpha(1,.2),cex=.8,
+     xlab="total-RNA exp2 (log10)",ylab="total-RNA exp1 (log10)")
+plot(log(RNA_over_gDNA$totalRNA_2_total,10),log(RNA_over_gDNA$totalRNA_3_total,10),pch=16,col=alpha(1,.2),cex=.8,
+     xlab="total-RNA exp2 (log10)",ylab="total-RNA exp3 (log10)")
+plot(log(RNA_over_gDNA$totalRNA_2_total,10),log(RNA_over_gDNA$totalRNA_4_total,10),pch=16,col=alpha(1,.2),cex=.8,
+     xlab="total-RNA exp2 (log10)",ylab="total-RNA exp4 (log10)")
+
+plot(log(RNA_over_gDNA$runon_4_total,10),log(RNA_over_gDNA$runon_5_total,10),pch=16,col=alpha(1,.2),cex=.8,
+     xlab="runon-RNA exp4 (log10)",ylab="ruon-RNA exp5 (log10)")
+
+```
+
+Set median of randomized controls to 1
+```{r Norm to randomized controls}
+load('../R analysis/input/HV20200429_full_library.RData')
+controls <- full_library$unique_id[full_library$category=="randomized_control"]
+
+RNA_over_ctrl <- RNA_over_gDNA
+for(sample in colnames(counts_RNA_scaled)){
+  RNA_over_ctrl[,grep(sample,colnames(RNA_over_ctrl))] <- 
+    RNA_over_gDNA[,grep(sample,colnames(RNA_over_gDNA))] / 
+      median(RNA_over_gDNA[controls, paste(sample,'total',sep="_")],na.rm=T)
+}
+```
+
+Calculate splicing efficiencies
+```{r Splicing efficiencies}
+splicingefficiencies <- data.frame("totalRNA_1_splicingefficiency"=
+                                     RNA_over_ctrl$totalRNA_1_splicedtotal / RNA_over_ctrl$totalRNA_1_total,
+                                   "totalRNA_2_splicingefficiency"=
+                                     RNA_over_ctrl$totalRNA_2_splicedtotal / RNA_over_ctrl$totalRNA_2_total,
+                                   "totalRNA_3_splicingefficiency"=
+                                     RNA_over_ctrl$totalRNA_3_splicedtotal / RNA_over_ctrl$totalRNA_3_total,
+                                   "totalRNA_4_splicingefficiency"=
+                                     RNA_over_ctrl$totalRNA_4_splicedtotal / RNA_over_ctrl$totalRNA_4_total,
+                                   "runonRNA_4_splicingefficiency"=
+                                     RNA_over_ctrl$runon_4_splicedtotal / RNA_over_ctrl$runon_4_total,
+                                   "runonRNA_5_splicingefficiency"=
+                                     RNA_over_ctrl$runon_5_splicedtotal / RNA_over_ctrl$runon_5_total)
+RNA_over_ctrl <- cbind(RNA_over_ctrl,splicingefficiencies)
+```
+
+Correlations between replicates after all normalizations
+```{r Correlations}
+cor(RNA_over_ctrl[grep('_._total',colnames(RNA_over_ctrl))],use="complete.obs",method="spearman")
+```
+
+Add pseudocounts to everything with < 5e-3 normalized counts
+```{r Pseudocounts}
+RNA_over_ctrl_pseudo <- RNA_over_ctrl
+RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))][
+  RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))]< 5e-3] <- 5e-3
+```
+
+Plots after all normalizations and adding pseudocounts
+```{r Correlation plots w pseudocounts}
+plot(log(RNA_over_ctrl_pseudo$totalRNA_1_total,2),
+     log(RNA_over_ctrl_pseudo$totalRNA_2_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-6.5,6),ylim=c(-6.5,6),
+     main="Total-RNA: 1 vs 2",xlab="Total-RNA repl 1 (log2)",ylab="Total-RNA repl 2 (log2)")
+plot(log(RNA_over_ctrl_pseudo$totalRNA_2_total,2),
+     log(RNA_over_ctrl_pseudo$totalRNA_3_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-6.5,6),ylim=c(-6.5,6),
+     main="Total-RNA: 2 vs 3",xlab="Total-RNA repl 2 (log2)",ylab="Total-RNA repl 3 (log2)")
+plot(log(RNA_over_ctrl_pseudo$totalRNA_2_total,2),
+     log(RNA_over_ctrl_pseudo$totalRNA_4_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-6.5,6),ylim=c(-6.5,6.5),
+     main="Total-RNA: 2 vs 4",xlab="Total-RNA repl 2 (log2)",ylab="Total-RNA repl 4 (log2)")
+plot(log(RNA_over_ctrl_pseudo$totalRNA_4_total,2),
+     log(RNA_over_ctrl_pseudo$runon_4_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),
+     main="total-RNA vs run-on repl4",xlab="Total (log2)",ylab="Run-on (log2)")
+plot(log(RNA_over_ctrl_pseudo$runon_4_total,2),
+     log(RNA_over_ctrl_pseudo$runon_5_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),
+     main="Two run-on replicates",xlab="Run-on 4 (log2)",ylab="Run-on 5 (log2)")
+```
+
+Average replicates. Divide by median of controls again after averaging, so that the controls are really set to 1.
+Calculate correlations.
+Then add pseudocounts and make plots
+```{r Average replicates}
+RNA_over_ctrl_totals <- RNA_over_ctrl[,grep('_total|splicing',colnames(RNA_over_ctrl))]
+RNA_over_ctrl_averages <- RNA_over_ctrl_totals
+RNA_over_ctrl_averages$totalRNA_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('totalRNA_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$totalRNA_average <- RNA_over_ctrl_averages$totalRNA_average /
+                                      median(RNA_over_ctrl_averages[controls,"totalRNA_average"],na.rm=T)
+RNA_over_ctrl_averages$runonRNA_average <-
+          rowMeans(RNA_over_ctrl_averages[,grep('runon_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$runonRNA_average <- RNA_over_ctrl_averages$runonRNA_average /
+                                     median(RNA_over_ctrl_averages[controls,"runonRNA_average"],na.rm=T)
+RNA_over_ctrl_averages$splicingeff_average <-
+  rowMeans(RNA_over_ctrl_averages[,grep('totalRNA_._splicingefficiency',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$splicingeff_runon_average <-
+  rowMeans(RNA_over_ctrl_averages[,grep('runonRNA_._splicingefficiency',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages <- RNA_over_ctrl_averages[,grep('average',colnames(RNA_over_ctrl_averages))]
+
+# Correlations
+cor(RNA_over_ctrl_averages$totalRNA_average,RNA_over_ctrl_averages$runonRNA_average,use="complete.obs",method="spearman")
+
+RNA_over_ctrl_averages_pseudo <- RNA_over_ctrl_averages
+RNA_over_ctrl_averages_pseudo[,grep('RNA',colnames(RNA_over_ctrl_averages))][
+                    RNA_over_ctrl_averages[,grep('RNA',colnames(RNA_over_ctrl_averages))]< 5e-3] <- 5e-3
+plot(log(RNA_over_ctrl_averages_pseudo$runonRNA_average,10),
+     log(RNA_over_ctrl_averages_pseudo$totalRNA_average,10),
+     pch=16,cex=0.6,col=alpha(1,.15),xlim=c(-2.5,2),ylim=c(-2.5,2),
+     main="Run-on-RNA vs Total-RNA",xlab="Run-on-RNA average (log10)",ylab="Total-RNA average (log10)")
+```
+
+Save
+```{r Save}
+save(RNA_over_ctrl,RNA_over_ctrl_pseudo,file="output/normalized_RNA_untreated_uaRNAscreens.RData")
+save(RNA_over_ctrl_averages,file="output/normalized_RNA_averagedtotals_untreated_uaRNAscreens.RData")
+save(RNA_over_ctrl_totals,file="output/normalized_RNA_totals_untreated_uaRNAscreens.RData")
+```

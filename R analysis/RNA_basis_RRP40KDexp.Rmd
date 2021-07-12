@@ -1,0 +1,159 @@
+---
+title: "RNA basis RRP40 KD experiment"
+output: html_document
+---
+
+```{r load libraries,message=FALSE}
+library(scales) # v 1.0.0
+```
+
+```{r read in counts}
+counts_RNA <- read.table('../Mapping/output/counts_cDNA_RRP40KDscreens.txt',stringsAsFactors=F)
+counts_RNA_scaled <- as.data.frame(scale(counts_RNA[-nrow(counts_RNA),],
+                                         colSums(counts_RNA), center=F))
+
+counts_gDNA <- read.table('../Mapping/output/counts_gDNA_RRP40KDscreens.txt',stringsAsFactors=F)
+counts_gDNA_scaled <- as.data.frame(scale(counts_gDNA[-nrow(counts_gDNA),],
+                                          colSums(counts_gDNA), center=F))
+```
+
+Put unspliced and spliced versions in side-by-side columns, calculate the totals
+```{r Unspliced-spliced side-by-side}
+RNA_perinsert <- as.data.frame(matrix(0,nrow=nrow(counts_gDNA_scaled),ncol=ncol(counts_RNA_scaled)*6))
+colnames(RNA_perinsert) <-
+          paste(rep(colnames(counts_RNA_scaled),each=6),
+                c('unspliced',paste0('spliced',1:3),'splicedtotal','total'),sep="_")
+rownames(RNA_perinsert) <- rownames(counts_gDNA_scaled)
+RNA_perinsert[,paste(colnames(counts_RNA_scaled),'unspliced',sep="_")] <-
+  counts_RNA_scaled[1:nrow(counts_gDNA_scaled),]
+
+for(sample in colnames(counts_RNA_scaled)) {
+	for(i in 1:3){
+		RNA_perinsert[,paste0(sample,'_spliced',i)] <-
+			sapply(rownames(RNA_perinsert),function(x){
+      				counts_RNA_scaled[paste0(x,'_spliced',i),sample]
+    	})
+	}
+  RNA_perinsert[,paste0(sample,'_splicedtotal')] <- 
+    rowSums(RNA_perinsert[,grep(paste0(sample,'_spliced.$'),colnames(RNA_perinsert))],na.rm=T)
+  RNA_perinsert[,paste0(sample,'_total')] <-
+    rowSums(RNA_perinsert[,c(paste0(sample,'_unspliced'),paste0(sample,'_splicedtotal'))],na.rm=T)
+}
+```
+
+Normalize to gDNA
+```{r Cutoff and norm to gDNA}
+# These are thresholds I settled on to balance improving correlation between experiments and not losing too much data.
+thresholds <- c("gDNA_siNT_A"=1e-5,"gDNA_siNT_B"=1e-5,"gDNA_siNT_C"=1e-5,
+                "gDNA_siRRP40_A"=1e-5,"gDNA_siRRP40_B"=1e-5,"gDNA_siRRP40_C"=1e-5,"gDNA_siINTS11_A"=1e-5) 
+
+RNA_over_gDNA <- RNA_perinsert
+for(experiment in c('siNT_A','siNT_B','siNT_C','siRRP40_A','siRRP40_B','siRRP40_C','siINTS11_A')) {
+	RNA_over_gDNA[,grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] <-
+	  RNA_over_gDNA[,grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] /
+                       	       counts_gDNA_scaled[,grep(paste0(experiment,"$"),colnames(counts_gDNA_scaled))]
+	RNA_over_gDNA[counts_gDNA_scaled[,grep(paste0(experiment,"$"),colnames(counts_gDNA_scaled))] <
+	                thresholds[grep(paste0(experiment,"$"),names(thresholds))],
+	              grep(paste0(experiment,"_"),colnames(RNA_over_gDNA))] <- NA
+}
+```
+
+Set median of randomized controls to 1
+```{r Norm to randomized controls}
+load('input/HV20200429_full_library.RData')
+controls <- full_library$unique_id[full_library$category=="randomized_control"]
+
+RNA_over_ctrl <- RNA_over_gDNA
+for(sample in colnames(counts_RNA_scaled)){
+  RNA_over_ctrl[,grep(sample,colnames(RNA_over_ctrl))] <- 
+    RNA_over_gDNA[,grep(sample,colnames(RNA_over_gDNA))] / 
+      median(RNA_over_gDNA[controls, paste(sample,'total',sep="_")],na.rm=T)
+}
+```
+
+Calculate splicing efficiencies
+```{r Splicing efficiencies}
+splicingefficiencies <- data.frame("siNT_A_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siNT_A_splicedtotal / RNA_over_ctrl$cDNA_siNT_A_total,
+                                   "siNT_B_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siNT_B_splicedtotal / RNA_over_ctrl$cDNA_siNT_B_total,
+                                   "siNT_C_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siNT_C_splicedtotal / RNA_over_ctrl$cDNA_siNT_C_total,
+                                   "siRRP40_A_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siRRP40_A_splicedtotal / RNA_over_ctrl$cDNA_siRRP40_A_total,
+                                   "siRRP40_B_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siRRP40_B_splicedtotal / RNA_over_ctrl$cDNA_siRRP40_B_total,
+                                   "siRRP40_C_splicingefficiency"=
+                                     RNA_over_ctrl$cDNA_siRRP40_C_splicedtotal / RNA_over_ctrl$cDNA_siRRP40_C_total
+                                   )
+RNA_over_ctrl <- cbind(RNA_over_ctrl,splicingefficiencies)
+```
+
+Correlations between replicates after all normalizations
+```{r Correlations}
+cor(RNA_over_ctrl$cDNA_siNT_A_total,RNA_over_ctrl$cDNA_siNT_B_total,use="complete.obs",method="spearman")
+cor(RNA_over_ctrl$cDNA_siNT_A_total,RNA_over_ctrl$cDNA_siNT_C_total,use="complete.obs",method="spearman")
+cor(RNA_over_ctrl$cDNA_siRRP40_A_total,RNA_over_ctrl$cDNA_siRRP40_B_total,use="complete.obs",method="spearman")
+cor(RNA_over_ctrl$cDNA_siRRP40_A_total,RNA_over_ctrl$cDNA_siRRP40_C_total,use="complete.obs",method="spearman")
+
+cor(RNA_over_ctrl$cDNA_siNT_A_total,RNA_over_ctrl$cDNA_siRRP40_A_total,use="complete.obs",method="spearman")
+```
+
+Add pseudocounts to everything with < 5e-3 normalized counts
+```{r Pseudocounts}
+RNA_over_ctrl_pseudo <- RNA_over_ctrl
+RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))][
+  RNA_over_ctrl_pseudo[,grep('_total',colnames(RNA_over_ctrl_pseudo))]< 5e-3] <- 5e-3
+```
+
+Plots after all normalizations and adding pseudocounts
+```{r Correlation plots w pseudocounts}
+plot(log(RNA_over_ctrl_pseudo$cDNA_siNT_A_total,2),
+     log(RNA_over_ctrl_pseudo$cDNA_siNT_B_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),#xlim=c(-6.5,6),ylim=c(-6.5,6),
+     main="Total-RNA siNT A vs B",xlab="siNT - A (log2)",ylab="siNT - B (log2)")
+plot(log(RNA_over_ctrl_pseudo$cDNA_siRRP40_A_total,2),
+     log(RNA_over_ctrl_pseudo$cDNA_siRRP40_B_total,2),
+     pch=16,cex=0.6,col=alpha(1,.3),#xlim=c(-6.5,6),ylim=c(-6.5,6),
+     main="Total-RNA siRRP40 A vs B",xlab="siRRP40 - A (log2)",ylab="siRRP40 - B (log2)")
+```
+
+Average replicates. Divide by median of controls again after averaging, so that the controls are really set to 1.
+Calculate correlations.
+Then add pseudocounts and make plots
+```{r Average replicates}
+RNA_over_ctrl_totals <- RNA_over_ctrl[,grep('_total|splicing',colnames(RNA_over_ctrl))]
+RNA_over_ctrl_averages <- RNA_over_ctrl_totals
+RNA_over_ctrl_averages$siNT_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('siNT_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$siNT_average <- RNA_over_ctrl_averages$siNT_average /
+                                      median(RNA_over_ctrl_averages[controls,"siNT_average"],na.rm=T)
+RNA_over_ctrl_averages$siNT_splicingeff_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('siNT_._splicing',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$siRRP40_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('siRRP40_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$siRRP40_average <- RNA_over_ctrl_averages$siRRP40_average /
+                                      median(RNA_over_ctrl_averages[controls,"siRRP40_average"],na.rm=T)
+RNA_over_ctrl_averages$siRRP40_splicingeff_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('siRRP40_._splicing',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages <- RNA_over_ctrl_averages[,grep('average',colnames(RNA_over_ctrl_averages))]
+
+# Correlations
+cor(RNA_over_ctrl_averages$siNT_average,RNA_over_ctrl_averages$siRRP40_average,use="complete.obs",method="spearman")
+
+RNA_over_ctrl_averages_pseudo <- RNA_over_ctrl_averages
+RNA_over_ctrl_averages_pseudo[,c(1,3)][
+                    RNA_over_ctrl_averages[,c(1,3)]< 5e-3] <- 5e-3
+plot(log(RNA_over_ctrl_averages_pseudo$siNT_average,10),
+     log(RNA_over_ctrl_averages_pseudo$siRRP40_average,10),
+     pch=16,cex=0.6,col=alpha(1,.15),#xlim=c(-2.5,2),ylim=c(-2.5,2),
+     main="siNT vs siRRP40",xlab="siNT average (log10)",ylab="siRRP40 average (log10)")
+```
+
+Save
+```{r Save}
+save(RNA_over_ctrl,RNA_over_ctrl_pseudo,file="output/normalized_RNA_all_RRP40KDexp.RData")
+save(RNA_over_ctrl_averages,RNA_over_ctrl_averages_pseudo,
+     file="output/normalized_RNA_averagedtotals_RRP40KDexp.RData")
+save(RNA_over_ctrl_totals,file="output/normalized_RNA_totals_RRP40KDexp.RData")
+```
