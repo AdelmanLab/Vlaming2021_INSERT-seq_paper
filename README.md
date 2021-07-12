@@ -14,6 +14,7 @@ Used in the following order:
 Also provided is a short script to generate browser snapshots using the Fluff package.
 
 Html files were created from R-markdown files and can be found here:
+
 https://adelmanlab.github.io/Vlaming2021_INSERT-seq_paper/Sort-seq_basis.html
 https://adelmanlab.github.io/Vlaming2021_INSERT-seq_paper/RNA_basis_untreated_uaRNAexp.html
 https://adelmanlab.github.io/Vlaming2021_INSERT-seq_paper/RNA_basis_RRP40KDexp.html
