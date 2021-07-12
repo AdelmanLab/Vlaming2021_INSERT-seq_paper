@@ -1,6 +1,7 @@
 # Vlaming2021_INSERT-seq_paper
 
-A collection of scripts that were run to analyse INSERT-seq data and create (tables for) all figures in the Vlaming 2021 manuscript (currently available at https://www.biorxiv.org/content/10.1101/2021.06.01.446655v1)
+A collection of scripts that were run to analyse INSERT-seq data and create (tables for) all figures in the Vlaming 2021 manuscript (currently available at https://www.biorxiv.org/content/10.1101/2021.06.01.446655v1).
+
 Scripts are provided for transparency purposes, but path names have not been updated to run for everyone immediately. So, if you want to re-run analyses yourself, you may need to change some path names.
 
 Used in the following order:
