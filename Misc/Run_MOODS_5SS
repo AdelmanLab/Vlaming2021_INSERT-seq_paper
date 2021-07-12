@@ -1,0 +1,5 @@
+cd ~/scratch_hv34/MOODS/
+
+sbatch MOODS_batchscript.sh SD0001.1 0.05 
+# SD0001 is SD0001.1.pfm downloaded from JASPAR
+# 0.05 is p value cutoff (very lenient, filtered down further by MaxEnt score)
