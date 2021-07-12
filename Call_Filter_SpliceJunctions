@@ -1,0 +1,68 @@
+# Run this after I've already run some steps of sortseq-totalRNA-nascentRNA_experiments
+# Need to run up to the cutadapt step on RNA samples.
+
+	cd /n/scratch3/users/h/hv34/mapping_sortseq/cutadapt_output/
+
+# Concatenate replicates 2, 3 and 4 of total-RNA samples
+
+	cat LIB043895_GEN00166548_R1_trim.cutadapt.fastq LIB043895_GEN00166550_R1_trim.cutadapt.fastq 
+		t_10M_R1_trim.cutadapt.fastq > cDNA_total2-4_R1_trim.cutadapt.fastq
+	cat LIB043895_GEN00166548_R2_trim.cutadapt.fastq LIB043895_GEN00166550_R2_trim.cutadapt.fastq
+		t_10M_R2_trim.cutadapt.fastq > cDNA_total2-4_R2_trim.cutadapt.fastq
+
+
+# Run STAR to call splice junctions on the concatenated files
+
+	mkdir STAR_output_20210611_Oct2020/
+	sbatch runSTAR.sh
+
+
+# Use R to filter down splice junctions to only junctions on the + strand with >10 read counts 
+# and >25% of the maximum counts for other junctions detected in the same insert.
+
+	cd STAR_output_20210611_Oct2020/
+	module load R/3.5.1
+	R
+	load('~/Library_design/Final_tables/HV20190521_full_library.RData')
+	splicejunctions <- read.delim('SJ.out.tab',header=F,stringsAsFactors=F)	# Read in STAR output
+	splicejunctions_plusstrand <- splicejunctions[splicejunctions$V4==1,]	# keep only introns on + strand
+	splicejunctions_plusstrand_cutoff <- splicejunctions_plusstrand[splicejunctions_plusstrand$V7>10,] 		
+								# Apply cutoffs on raw counts (10) and fraction of max counts (25%)
+	splicejunctions_plusstrand_cutoff$V7_rmlosers <- 
+	  sapply(1:nrow(splicejunctions_plusstrand_cutoff),function(x){
+	    if(sum(grepl(splicejunctions_plusstrand_cutoff[x,1],splicejunctions_plusstrand_cutoff$V1))>1) {
+	      if(splicejunctions_plusstrand_cutoff[x,7] < 
+		0.25*max(splicejunctions_plusstrand_cutoff$V7[grep(splicejunctions_plusstrand_cutoff[x,1],splicejunctions_plusstrand_cutoff$V1)])) {
+	        counts <- NA
+	      } else {counts <- splicejunctions_plusstrand_cutoff[x,7]}
+	    } else {counts <- splicejunctions_plusstrand_cutoff[x,7]}
+	    as.numeric(counts)
+	  })
+	splicejunctions_plusstrand_cutoff <- splicejunctions_plusstrand_cutoff[!is.na(splicejunctions_plusstrand_cutoff$V7_rmlosers),]	
+								# Remove rows that don't meet criteria
+	write.table(splicejunctions_plusstrand_cutoff,'SJ_filtered.tab',sep="\t",row.names=F,col.names=F,quote=F)
+
+	# Making names of original insert name + spliced1/2/3
+	rownames_splicejunctions_plusstrand_cutoff <- 
+	    paste0(splicejunctions_plusstrand_cutoff$V1,"_spliced1")
+	rownames_splicejunctions_plusstrand_cutoff[duplicated(rownames_splicejunctions_plusstrand_cutoff)] <-
+	    paste0(substr(rownames_splicejunctions_plusstrand_cutoff[duplicated(rownames_splicejunctions_plusstrand_cutoff)],1,22),"2")
+	rownames_splicejunctions_plusstrand_cutoff[duplicated(rownames_splicejunctions_plusstrand_cutoff)] <-
+	  paste0(substr(rownames_splicejunctions_plusstrand_cutoff[duplicated(rownames_splicejunctions_plusstrand_cutoff)],1,22),"3")
+	rownames(splicejunctions_plusstrand_cutoff) <- rownames_splicejunctions_plusstrand_cutoff
+	  
+	# Make new sequences, based on original sequences with introns removed
+	spliced_sequences <- apply(splicejunctions_plusstrand_cutoff,MAR=1,function(x){	
+	  sequence <- full_library$sequence_in_read[full_library$unique_id==x[1]]
+	  new_sequence <- paste0(substr(sequence,1,as.numeric(x[2])-1),substr(sequence,as.numeric(x[3])+1,175))
+	})
+
+	library(Biostrings)
+	spliced_sequences <- DNAStringSet(spliced_sequences) ; sequence_inread_full <- DNAStringSet(full_library$sequence_in_read)
+	names(sequence_inread_full) <- full_library$unique_id
+	sequences_unspliced_spliced <- c(sequence_inread_full,spliced_sequences)
+	writeXStringSet(sequences_unspliced_spliced,file="sequences_unspliced_spliced_pooleddata.fa",width=80)
+			# Write fasta file that has seqs of all spliced and unspliced inserts
+	q()
+
+# Copy files over to /home/hv34/screens_analysis/Reference/STAR_October2020, which I refer to from other scripts.

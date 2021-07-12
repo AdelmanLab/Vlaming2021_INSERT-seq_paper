@@ -1,0 +1,73 @@
+# Note:
+# Run sortseq-totalRNA-nascentRNA_experiments first (at least up to making the reference genome index and running cutadapt on cDNA samples)
+# Also run Call_Filter_SpliceJunctions so that reference genome index for cDNA mapping is ready too
+
+# Copy over raw data files an unzip them
+
+	cd ~/scratch3_hv34/mapping_sortseq/fastq_files/
+	# Copy zipped fastq files into fastq_files folder
+	gunzip *fq.gz
+
+# Map gDNA samples
+
+	mkdir mapped_count_files/
+	mkdir cutadapt_output/
+	module load bowtie2/2.3.4.3
+	module load cutadapt/1.14
+	module load samtools/1.9
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siNT_A
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siNT_B
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siNT_C
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siRRP40_A
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siRRP40_B
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_siRRP40_C
+	
+
+# Trim adapters / low quality ends from RNA samples
+	
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siNT_A
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siNT_B
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siNT_C
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siRRP40_A
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siRRP40_B
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh cDNA_siRRP40_C
+
+
+# Map RNA samples to reference genome that includes all spliced and unspliced versions
+
+	cd ~/scratch3_hv34/mapping_sortseq/
+	sbatch Bowtie2_afterSTAR_siNT-siRRP40.sh
+
+
+# Load output into R to process into simple count tables
+
+	module load R/3.5.1
+	R
+	making_countstables <- function(samples,filename='_bt2_PE_nodisc_3mm_wogaps_idxstats') {
+		temp <- read.delim(paste0('mapped_count_files/',samples,filename,'.txt'),
+		stringsAsFactors=F,row.names=1,header=F,col.names=c('rownames','length','counts','remove'))
+		counts <- temp[,2] / 2
+		names(counts) <- rownames(temp)
+		counts
+	}
+	# This function: takes a vector of different library names, with vector names becoming headers
+	# Default file name parameter works for gDNA samples, adjust for cDNA samples
+	# Output is matrix where the rows are the inserts and columns contain counts per sample
+	# Counts need to be divided by two, because each mapped read pair gives two counts 
+	
+	gDNA_samples <-
+		c('gDNA_siNT_A','gDNA_siNT_B','gDNA_siNT_C',
+		'gDNA_siRRP40_A','gDNA_siRRP40_B','gDNA_siRRP40_C')
+	names(gDNA_samples) <- gDNA_samples
+	gDNA_counts <- sapply(gDNA_samples, making_countstables)
+	write.table(gDNA_counts, 'mapped_count_files/counts_gDNA_RRP40KDscreens.txt',sep='\t')
+
+	RNA_samples <- 
+		c('cDNA_siNT_A','cDNA_siNT_B','cDNA_siNT_C',
+		'cDNA_siRRP40_A','cDNA_siRRP40_B','cDNA_siRRP40_C')
+	names(RNA_samples) <- RNA_samples
+	RNA_counts <- sapply(RNA_samples,making_countstables,
+			filename='_unspliced_spliced_bt2_PE_nodisc_3mm_wogaps_idxstats')
+	write.table(RNA_counts, 'mapped_count_files/counts_cDNA_RRP40KDscreens.txt',sep='\t')
+
+# Copy these txt files over and process further in R run locally

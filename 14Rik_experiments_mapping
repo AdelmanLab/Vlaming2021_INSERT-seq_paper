@@ -1,0 +1,66 @@
+# Note:
+# Run sortseq-totalRNA-nascentRNA_experiments first (at least up to making the reference genome index and running cutadapt on cDNA samples)
+# Also run Call_Filter_SpliceJunctions so that reference genome index for cDNA mapping is ready too
+
+
+# Copy over files and unzip
+
+	cd ~/scratch3_hv34/mapping_sortseq/fastq_files/
+	# Copy zipped fastq files into fastq_files folder
+	gunzip *fq.gz &
+
+
+# Map gDNA samples
+
+	mkdir mapped_count_files/
+	mkdir cutadapt_output/
+	module load bowtie2/2.3.4.3
+	module load cutadapt/1.14
+	module load samtools/1.9
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh HV_gDNA #14Rik_repl1
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_14Rik_1005
+	sbatch ~/scratch3_hv34/mapping_sortseq/gDNA_mapping_persample_novogene.sh gDNA_14Rik_1007
+
+
+# Trim adapters / low quality ends from RNA samples
+
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh HV_cDNA #14Rik_repl1
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh RNA_14Rik_1005
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh RNA_14Rik_1007
+
+# Map RNA samples to reference genome that includes all spliced and unspliced versions
+
+	cd ~/scratch3_hv34/mapping_sortseq/
+	sbatch Bowtie2_afterSTAR_14Riksamples.sh
+
+
+# Load output into R to process into simple count tables
+
+	module load R/3.5.1
+	R
+	making_countstables <- function(samples,filename='_bt2_PE_nodisc_3mm_wogaps_idxstats') {
+		temp <- read.delim(paste0('mapped_count_files/',samples,filename,'.txt'),
+		stringsAsFactors=F,row.names=1,header=F,col.names=c('rownames','length','counts','remove'))
+		counts <- temp[,2] / 2
+		names(counts) <- rownames(temp)
+		counts
+	}
+	# This function: takes a vector of different library names, with vector names becoming headers
+	# Default file name parameter works for gDNA samples, adjust for cDNA samples
+	# Output is matrix where the rows are the inserts and columns contain counts per sample
+	# Counts need to be divided by two, because each mapped read pair gives two counts 
+	
+	gDNA_samples <- c('HV_gDNA','gDNA_14Rik_1005','gDNA_14Rik_1007')
+	names(gDNA_samples) <- gDNA_samples
+	names(gDNA_samples)[1] <- 'gDNA_14Rik_repl1'
+	gDNA_counts <- sapply(gDNA_samples, making_countstables)
+	write.table(gDNA_counts, 'mapped_count_files/counts_14Rik_gDNA.txt',sep='\t')
+
+	RNA_samples <- c('HV_cDNA','RNA_14Rik_1005','RNA_14Rik_1007')
+	names(RNA_samples) <- RNA_samples
+	names(RNA_samples)[1] <- 'RNA_14Rik_repl1'
+	RNA_counts <- sapply(RNA_samples,
+		making_countstables,filename='_unspliced_spliced_bt2_PE_nodisc_3mm_wogaps_idxstats')
+	write.table(RNA_counts, 'mapped_count_files/counts_14Rik_RNA.txt',sep='\t')
+
+# Copy these txt files over and process further in R run locally

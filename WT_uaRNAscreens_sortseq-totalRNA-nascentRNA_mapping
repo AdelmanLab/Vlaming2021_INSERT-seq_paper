@@ -1,0 +1,99 @@
+
+# Explanation sample names:
+# FC_05327 LIB042739_GEN001622xx is sort-seq and total-RNA screen 1
+# FC_05518 is sort-seq screen 2, RNA screens 2&3
+# 20200814_novogene_runons_totalRNAtests has run-on data and the fourth total-RNA replicate
+
+
+# Copy over and unzip
+	mkdir ~/scratch3_hv34/mapping_sortseq/
+	mkdir ~/scratch3_hv34/mapping_sortseq/fastq_files/
+	cd ~/scratch3_hv34/mapping_sortseq/fastq_files/
+	# Copy all zipped fast files over to the fastq_files folder 
+	bzip2 -d *fastq.bz2 &
+	gunzip *fq.gz &
+
+# Make reference genome index for gDNA samples (make sure to be in a session with 3 cores)
+
+	cd ~/scratch3_hv34/mapping_sortseq/
+	mkdir Reference/
+	cp ~/Library_design/Final_tables/sequence_inread_full.fa Reference/
+	module load bowtie2/2.3.4.3
+	bowtie2-build --threads 3 Reference/sequence_inread_full.fa Reference/inserts_fake_genome_bt2
+	module load samtools/1.9
+	samtools faidx Reference/sequence_inread_full.fa
+
+# Map gDNA samples
+
+	mkdir mapped_count_files/
+	mkdir cutadapt_output/
+	sbatch gDNA_mapping_Oct4uaRNA_untreated.sh
+
+# Trim adapters / low quality ends from RNA samples
+
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB042739_GEN00162228
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166548
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166550
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_723
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_725
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh t_10M
+
+## Run Call_Filter_SpliceJunctions script to call splice junctions on total-RNA replicates 2-4 (repl 1 has much lower depth)
+
+# Map RNA samples to newly generated reference genome that includes all spliced and unspliced versions
+
+	cd ~/scratch3_hv34/mapping_sortseq/
+	sbatch Bowtie2_afterSTAR_WTscreens.sh
+
+
+# Load output into R to process into simple count tables
+
+	module load R/3.5.1
+	R
+	making_countstables <- function(samples,filename='_bt2_PE_nodisc_3mm_wogaps_idxstats') {
+		temp <- read.delim(paste0('mapped_count_files/',samples,filename,'.txt'),
+		stringsAsFactors=F,row.names=1,header=F,col.names=c('rownames','length','counts','remove'))
+		counts <- temp[,2] / 2
+		names(counts) <- rownames(temp)
+		counts
+	}
+	# This function: takes a vector of different library names, with vector names becoming headers
+	# Default file name parameter works for gDNA samples, adjust for cDNA samples
+	# Output is matrix where the rows are the inserts and columns contain counts per sample
+	# Counts need to be divided by two, because each mapped read pair gives two counts 
+	
+	sortseq_scr1_samples <- paste0('LIB042739_GEN001622',30:37)
+	names(sortseq_scr1_samples) <- c(paste0('bin_',1:6),'unsorted_high','unsorted_low')
+	sortseq_scr1 <- sapply(sortseq_scr1_samples, making_countstables)
+	write.table(sortseq_scr1, 'mapped_count_files/counts_sortseq_scr1.txt',sep='\t')
+
+	sortseq_scr2_samples <- paste0('LIB043895_GEN001665',c(41:46,51))
+	names(sortseq_scr2_samples) <- c(paste0('bin_',1:6),'unsorted')
+	sortseq_scr2 <- sapply(sortseq_scr2_samples, making_countstables)
+	write.table(sortseq_scr2, 'mapped_count_files/counts_sortseq_scr2.txt',sep='\t')
+
+	gDNA_forRNA_samples <- c('LIB042739_GEN00162229',paste0('LIB043895_GEN001665',52:53))
+	names(gDNA_forRNA_samples) <- paste0('gDNA_',1:3)
+	gDNA_forRNA_A <- sapply(gDNA_forRNA_samples, making_countstables)
+	gDNA_Aug2020_samples <- c('gDNA_723','gDNA_725')
+	names(gDNA_Aug2020_samples) <- gDNA_Aug2020_samples
+	gDNA_Aug2020 <- sapply(gDNA_Aug2020_samples, making_countstables)
+	colnames(gDNA_Aug2020) <- paste0('gDNA_',4:5)
+	gDNA_forRNA <- cbind(gDNA_forRNA_A,gDNA_Aug2020)
+	write.table(gDNA_forRNA, 
+		'mapped_count_files/counts_gDNA_forRNA_untreated_uaRNAscreens.txt',sep='\t')
+
+	RNA_samples <- c('LIB042739_GEN00162228',paste0('LIB043895_GEN001665',c(48,50)))
+	names(RNA_samples) <- c('totalRNA_1','totalRNA_2','totalRNA_3')
+	RNA_A <- sapply(RNA_samples,
+		making_countstables,filename='_unspliced_spliced_bt2_PE_nodisc_3mm_wogaps_idxstats')
+	RNA_Aug2020_samples <- c('run_723','run_725','t_10M')
+	names(RNA_Aug2020_samples) <- RNA_Aug2020_samples
+	RNA_Aug2020 <- sapply(RNA_Aug2020_samples, 
+		making_countstables,filename='_unspliced_spliced_bt2_PE_nodisc_3mm_wogaps_idxstats')
+	colnames(RNA_Aug2020) <- c("runon_4","runon_5","totalRNA_4")
+	RNA_all <- cbind(RNA_A,RNA_Aug2020)
+	write.table(RNA_all, 
+		'mapped_count_files/counts_RNA_untreated_uaRNAscreens.txt',sep='\t')
+
+# Copy these txt files over and process further in R run locally
