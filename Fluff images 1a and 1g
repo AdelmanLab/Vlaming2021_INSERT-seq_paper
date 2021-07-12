@@ -1,0 +1,20 @@
+# Note: figures were further processed in Illustrator to adjust fonts, width, etc.
+
+cd ~/scratch3_hv34/fluff_profiles/
+module load conda2/4.2.13
+module load python/3.6.0
+source activate python_3.6
+
+
+# Figure 1a, TT-seq at Oct4 uaRNA locus
+fluff  profile -i chr17:35504018-35510794 -d /n/groups/genomebrowser-uploads/data/bjm36/mESC/200421_mm10_mESC_TTseq_20m_DMSO_BJM_N2_R.bw /n/groups/genomebrowser-uploads/data/bjm36/mESC/200421_mm10_mESC_TTseq_20m_DMSO_BJM_N2_F.bw -f 0 -r -c red,black -o TTseq20min_profile_Oct4ua_Oct4m_rev.pdf
+
+
+# Figure 1g, unbinned TT-seq data and 25bp binned ChIP-seq data at Oct4 uaRNA vs 14Rik lincRNA locus
+
+# Oct4 uaTSS = chr17:35504914
+fluff  profile -i chr17:35504300-35506300 -d /n/groups/genomebrowser-uploads/data/bjm36/mESC/200421_mm10_mESC_TTseq_20m_DMSO_BJM_N2_R.bw /n/data1/hms/bcmp/adelman/AF_working/fastqs/190523_EpiLC_H3K27ac_918-108-306_combined/happy_bins_Vlaming/25bp/h3k27ac_happybins_25.bedGraph /n/scratch3/users/b/bjm36/binned_bg_fo_hv/mESC_BJM_H3K4me3_N2_25bp_bins.bedGraph /n/groups/genomebrowser-uploads/data/bjm36/mESC/Wysocka_mESC_H3K4me1_pooled_reps_75bp_shift_25bp_binned_merged.bw -f 0 -r -c black,green,purple,orange -S 140,50,35,10 -o TTseq_H3K27ac_H3K4me3_H3K4me1_25bpbins_profile_Oct4ua_scaled_2kb.pdf
+
+# 14Rik TSS = chr9:58,455,177
+fluff  profile -i chr9:58454687-58456687 -d /n/groups/genomebrowser-uploads/data/bjm36/mESC/200421_mm10_mESC_TTseq_20m_DMSO_BJM_N2_F.bw /n/data1/hms/bcmp/adelman/AF_working/fastqs/190523_EpiLC_H3K27ac_918-108-306_combined/happy_bins_Vlaming/25bp/h3k27ac_happybins_25.bedGraph /n/scratch3/users/b/bjm36/binned_bg_fo_hv/mESC_BJM_H3K4me3_N2_25bp_bins.bedGraph /n/groups/genomebrowser-uploads/data/bjm36/mESC/Wysocka_mESC_H3K4me1_pooled_reps_75bp_shift_25bp_binned_merged.bw -f 0 -c black,green,purple,orange -S 510,50,35,10 -o TTseq_H3K27ac_H3K4me3_H3K4me1_25bpbins_profile_14Rik_scaled_2kb.pdf
+
