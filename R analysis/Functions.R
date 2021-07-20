@@ -141,14 +141,14 @@ get_write_fastafiles <- function(ids,name,save=T) {
   seqs
 }
 
-
 averagebcsandrepl <- function(x=data_introns_bcaverages,intron_list,data,data_type,repl=T) {
   intron_mut <- paste(x["name"],x["mutstatus"],sep="_")
   rows_maintable <- which(intron_list==intron_mut)
   data_average <- median(unlist(data[rows_maintable,grep(data_type,colnames(data))]),na.rm=T)
   repl_data <- sum(!is.na(data[rows_maintable,grep(data_type,colnames(data))]))
-  if(repl==T) {c(repl_data,data_average)} else {data_average}
-} 
+  if(repl==T) {c(data_average,repl_data)} else {data_average}
+}
+
 
 # Big function to average barcoded intron data, select which introns are spliced originally, and which mutants effectively abrogating splicing.
 # Input:
@@ -187,19 +187,20 @@ function_intron_tables <- function(data_introns=allintrondata_noNA,
     data_introns_nobc[paste(i,"average",sep="_")] <-
       rowMeans(data_introns_nobc[,grep(data_types[i],colnames(data_introns_nobc))],na.rm=T)
     }
-  for (i in names(splicingefficiencies)) {
-    data_introns_nobc[paste("splicingeff",i,"average",sep="_")] <-
-      rowMeans(data_introns_nobc[,grep(splicingefficiencies[[i]][1],colnames(data_introns_nobc))],na.rm=T)
-  }
   # Set replicate number by counting the non-NAs per data type
   for (i in names(data_types)) {
     data_introns_nobc[paste('repl',i,sep="_")] <- NA
     data_introns_nobc[paste('repl',i,sep="_")] <-
       apply(data_introns_nobc[,grep(data_types[i],colnames(data_introns_nobc))], MAR=1,function(x){sum(!is.na(x))})
   }
+  # Mean splicing efficiency
+  for (i in names(splicingefficiencies)) {
+    data_introns_nobc[paste("splicingeff",i,"average",sep="_")] <-
+      rowMeans(data_introns_nobc[,grep(splicingefficiencies[[i]][1],colnames(data_introns_nobc))],na.rm=T)
+  }
   
   # Remove the non-averaged data and barcode columns from the table and put in the desired order using new group column
-  data_introns_nobc <- data_introns_nobc[,-grep('unique_id|1|2|3|4|5|barcode',colnames(data_introns_nobc))]
+  data_introns_nobc <- data_introns_nobc[,-grep('unique_id|screen1|screen2|_1|_2|_3|_4|_5|barcode',colnames(data_introns_nobc))]
   data_introns_nobc$group <- factor(data_introns_nobc$group, levels=c(
     "first_original","woPAS_original","wPAS_original",
     "wPAS_ProudfootPAS_in_scrambled"))
@@ -210,12 +211,14 @@ function_intron_tables <- function(data_introns=allintrondata_noNA,
   data_introns_withbc <- data_introns[!is.na(data_introns$barcode),]
   intron_mut_maintable <- paste(data_introns_withbc$name,
                                 data_introns_withbc$mutstatus,sep="_")
+  # Calculate the mean and repl number per data type
   data_introns_bcaverages <- data_introns_withbc[!(duplicated(intron_mut_maintable)),]
   for (i in names(data_types)) {
     data_introns_bcaverages[,c(paste(i,"average",sep="_"),paste('repl',i,sep="_"))] <- 
       t(apply(data_introns_bcaverages,MAR=1,averagebcsandrepl,
               intron_list=intron_mut_maintable,data=data_introns_withbc,data_type=data_types[i],repl=T))
   }
+  # Mean splicing efficiency
   for (i in names(splicingefficiencies)) {
     data_introns_bcaverages[,paste("splicingeff",i,"average",sep="_")] <- 
       apply(data_introns_bcaverages,MAR=1,averagebcsandrepl,
@@ -264,7 +267,6 @@ function_intron_tables <- function(data_introns=allintrondata_noNA,
                             paste("splicing_group",i,sep="_")] <- 
                                         paste0(">",splicingefficiencies[[i]][3])
   }
-  
   data_introns_averages
 }
 
