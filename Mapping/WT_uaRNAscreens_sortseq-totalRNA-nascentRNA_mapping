@@ -1,7 +1,7 @@
 
 # Explanation sample names:
 # FC_05327 LIB042739_GEN001622xx is sort-seq and total-RNA screen 1
-# FC_05518 is sort-seq screen 2, RNA screens 2&3
+# FC_05518 is sort-seq screen 2, RNA screens 2&3 (total-RNA & Chr-RNA)
 # 20200814_novogene_runons_totalRNAtests has run-on data and the fourth total-RNA replicate
 
 
@@ -31,12 +31,14 @@
 
 # Trim adapters / low quality ends from RNA samples
 
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB042739_GEN00162228
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166548
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166550
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_723
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_725
-	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh t_10M
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB042739_GEN00162228 # total-RNA exp1
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166547 # chr-RNA exp2
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166548 # total-RNA exp2
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166549 # chr-RNA exp2
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample.sh LIB043895_GEN00166550 # total-RNA exp3
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_723      # runon-RNA exp4
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh run_725      # runon-RNA exp5
+	sbatch ~/scratch3_hv34/mapping_sortseq/cutadapt_persample_novogene.sh t_10M        # total-RNA exp4
 
 ## Run Call_Filter_SpliceJunctions script to call splice junctions on total-RNA replicates 2-4 (repl 1 has much lower depth)
 
@@ -83,8 +85,8 @@
 	write.table(gDNA_forRNA, 
 		'mapped_count_files/counts_gDNA_forRNA_untreated_uaRNAscreens.txt',sep='\t')
 
-	RNA_samples <- c('LIB042739_GEN00162228',paste0('LIB043895_GEN001665',c(48,50)))
-	names(RNA_samples) <- c('totalRNA_1','totalRNA_2','totalRNA_3')
+	RNA_samples <- c('LIB042739_GEN00162228',paste0('LIB043895_GEN001665',47:50))
+	names(RNA_samples) <- c('totalRNA_1','chrRNA_2','totalRNA_2','chrRNA_3','totalRNA_3')
 	RNA_A <- sapply(RNA_samples,
 		making_countstables,filename='_unspliced_spliced_bt2_PE_nodisc_3mm_wogaps_idxstats')
 	RNA_Aug2020_samples <- c('run_723','run_725','t_10M')
@@ -94,6 +96,6 @@
 	colnames(RNA_Aug2020) <- c("runon_4","runon_5","totalRNA_4")
 	RNA_all <- cbind(RNA_A,RNA_Aug2020)
 	write.table(RNA_all, 
-		'mapped_count_files/counts_RNA_untreated_uaRNAscreens.txt',sep='\t')
+		'mapped_count_files/counts_RNA_untreated_uaRNAscreens_all.txt',sep='\t')
 
 # Copy these txt files over and process further in R run locally
