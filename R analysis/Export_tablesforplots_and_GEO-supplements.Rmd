@@ -20,8 +20,13 @@ RNA_over_ctrl_averages_14Rik <- rowMeans(RNA_over_ctrl_totals_14Rik,na.rm=T)
 
 load(file="output/normalized_RNA_totals_untreated_uaRNAscreens.RData") #RNA_over_ctrl_totals
 colnames(RNA_over_ctrl_totals)[match(c("runon_4_total","runon_5_total"),colnames(RNA_over_ctrl_totals))] <-
-    c("runon_1_total","runon_2_total")
-colnames(RNA_over_ctrl_totals)[match(c("runonRNA_4_splicingefficiency","runonRNA_5_splicingefficiency"),colnames(RNA_over_ctrl_totals))] <-   c("runonRNA_1_splicingefficiency","runonRNA_2_splicingefficiency")
+                          c("runon_1_total","runon_2_total")
+colnames(RNA_over_ctrl_totals)[match(c("runonRNA_4_splicingefficiency","runonRNA_5_splicingefficiency"),colnames(RNA_over_ctrl_totals))] <-   
+                          c("runonRNA_1_splicingefficiency","runonRNA_2_splicingefficiency")
+colnames(RNA_over_ctrl_totals)[match(c("chrRNA_2_total","chrRNA_3_total"),colnames(RNA_over_ctrl_totals))] <-
+                          c("chrRNA_1_total","chrRNA_2_total")
+colnames(RNA_over_ctrl_totals)[match(c("chrRNA_2_splicingefficiency","chrRNA_3_splicingefficiency"),colnames(RNA_over_ctrl_totals))] <-  
+                          c("chrRNA_1_splicingefficiency","chrRNA_2_splicingefficiency")
 
 load(file="output/normalized_RNA_averagedtotals_untreated_uaRNAscreens.RData") #RNA_over_ctrl_averages
 colnames(RNA_over_ctrl_averages)[colnames(RNA_over_ctrl_averages)=="splicingeff_average"] <- "splicingeff_total_average"
@@ -30,9 +35,7 @@ load(file="output/sortseq_scores.RData")
 sortseq_average <- rowMeans(sortseq_scores,na.rm=T)
 
 source("Functions.R")
-
 ```
-
 
 ```{r Library annotations}
 full_library_annotations <- full_library
@@ -63,17 +66,19 @@ write.table(full_library_annotations,'output/HV20210617_full_library_annotations
 ```
 
 ```{r merge data WT screens for GEO}
-alldata_WTscreens <- cbind(RNA_over_ctrl_averages[,c('totalRNA_average','runonRNA_average')],
+alldata_WTscreens <- cbind(RNA_over_ctrl_averages[,c('totalRNA_average','chrRNA_average','runonRNA_average')],
                             sortseq_average,
                             RNA_over_ctrl_averages[,c('splicingeff_total_average','splicingeff_runon_average')],
                             RNA_over_ctrl_totals[grep('totalRNA_._total',colnames(RNA_over_ctrl_totals))],
+                            RNA_over_ctrl_totals[grep('chrRNA_._total',colnames(RNA_over_ctrl_totals))],
                             RNA_over_ctrl_totals[grep('runon_._total',colnames(RNA_over_ctrl_totals))],
                             sortseq_scores,
                             RNA_over_ctrl_totals[grep('totalRNA_._splicingefficiency',colnames(RNA_over_ctrl_totals))],
+                            RNA_over_ctrl_totals[grep('chrRNA_._splicingefficiency',colnames(RNA_over_ctrl_totals))],
                             RNA_over_ctrl_totals[grep('runonRNA_._splicingefficiency',colnames(RNA_over_ctrl_totals))]
                             )
 
-write.table(alldata_WTscreens,'output/HV20210611_normalized_WTscreens.txt',sep="\t",quote=F,row.names=F)
+write.table(alldata_WTscreens,'output/HV20220110_normalized_WTscreens.txt',sep="\t",quote=F,row.names=F)
 ```
 
 ```{r merge data 14Rik screens for GEO}
@@ -83,7 +88,6 @@ alldata_14Rikscreens <- cbind("totalRNA_average"=RNA_over_ctrl_averages_14Rik,
 
 write.table(alldata_14Rikscreens,'output/HV20210611_normalized_14Rikscreens.txt',sep="\t",quote=F,row.names=F)
 ```
-
 
 ```{r merge data RRP40 KD screens for GEO}
 alldata_RRP40KDscreens <- cbind(RNA_over_ctrl_averages_RRP40kd[,c('siNT_average','siRRP40_average')],
@@ -102,6 +106,10 @@ alldata_WTscreens$totalRNA_average_pseudo[alldata_WTscreens$totalRNA_average_pse
 alldata_WTscreens$runonRNA_average_pseudo <- alldata_WTscreens$runonRNA_average
 alldata_WTscreens$runonRNA_average_pseudo[alldata_WTscreens$runonRNA_average_pseudo==0] <-
   min(alldata_WTscreens$runonRNA_average_pseudo[alldata_WTscreens$runonRNA_average_pseudo>0],na.rm=T)
+
+alldata_WTscreens$chrRNA_average_pseudo <- alldata_WTscreens$chrRNA_average
+alldata_WTscreens$chrRNA_average_pseudo[alldata_WTscreens$chrRNA_average_pseudo==0] <-
+  min(alldata_WTscreens$chrRNA_average_pseudo[alldata_WTscreens$chrRNA_average_pseudo>0],na.rm=T)
 
 alldata_14Rikscreens$totalRNA_average_pseudo <- alldata_14Rikscreens$totalRNA_average
 alldata_14Rikscreens$totalRNA_average_pseudo[alldata_14Rikscreens$totalRNA_average_pseudo==0] <- # This one doesn't actually have any zeros, so nothing changes
@@ -129,16 +137,18 @@ alldata_RRP40KD_annotated <- cbind(full_library[,c('unique_id','name','fasta_nam
 ```
 
 ```{r Figure 1}
-# Genereate data tables for Figure 1c, 1d, 1e and 1f,ED1b, ED1c, as well as Figure 2c
+# Genereate data tables for Figure 1c, 1d, 1e and 1f, ED1b, ED1c, as well as Figure 2c and ED Fig 2d
 genomicregions_complete <- keep_genomicregions(alldata_WT_annotated,complete_only=T,
                                  data_forcomplete=c('runonRNA_average','totalRNA_average','sortseq_average'))
 genomic_complete <- widetable_makeandsave_multi(x=genomicregions_complete,
-                                                data_types=c("runonRNA_average_pseudo","totalRNA_average_pseudo","sortseq_average"),
+                                                data_types=c("runonRNA_average_pseudo","chrRNA_average_pseudo",
+                                                             "totalRNA_average_pseudo","sortseq_average"),
                                                 grouping='group',subset_for_name='genomic',save_table=T,print_tables=T)
 median(genomic_complete$sortseq_average$randomized_control,na.rm=T)
 
 eRNA_6to179 <- widetable_makeandsave_multi(x=genomicregions_complete[genomicregions_complete$group=="eRNAs_6to179",],
-                                           data_types=c("runonRNA_average_pseudo","totalRNA_average_pseudo","sortseq_average"),
+                                           data_types=c("runonRNA_average_pseudo","chrRNA_average_pseudo",
+                                                        "totalRNA_average_pseudo","sortseq_average"),
                                            grouping='category',subset_for_name='eRNAs',save=T,print_tables=T)
 # What data in what figure?
 alldata_WT_annotated$fig1c <- 
@@ -185,28 +195,30 @@ genomicregions_RRP40KDscreen <- keep_genomicregions(alldata_RRP40KD_annotated,co
                                                     data_forcomplete=c("siNT_average","siRRP40_average"))
 
 # Data in Figure 2a
-alldata_RRP40KD_annotated$fig2a <- alldata_RRP40KD_annotated$unique_id %in% 
-    genomicregions_RRP40KDscreen$unique_id
-write.table(alldata_RRP40KD_annotated[alldata_RRP40KD_annotated$fig2a,c("unique_id","siNT_average_pseudo","siRRP40_average_pseudo")],
+write.table(alldata_RRP40KD_annotated[alldata_RRP40KD_annotated$unique_id %in% genomicregions_RRP40KDscreen$unique_id,
+                                      c("unique_id","siNT_average_pseudo","siRRP40_average_pseudo")],
             file="PrismTables/2a_siNTvssiRRP40_scatterplot.txt",sep="\t",row.names=F,quote=F)
 
 # Data in Figure 2b
 genomic_RRP40KDscreen <- widetable_makeandsave_multi(x=genomicregions_RRP40KDscreen,
                                                      data_types=c("siNT_average_pseudo","siRRP40_average_pseudo"),
                                                     grouping='group',subset_for_name='genomic',save_table=T,print_tables=T)
-alldata_RRP40KD_annotated$fig2b <- alldata_RRP40KD_annotated$unique_id %in% 
-    genomicregions_RRP40KDscreen$unique_id[grep('PAS|6to179',genomicregions_RRP40KDscreen$window)]
 
-# Data in Figure 2c
-alldata_WT_annotated$fig2c <- 
-  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[grep('PAS|6to179',genomicregions_complete$window)]
-
-# Extended Data Figure 2c
-write.table(genomicregions_complete[,c("unique_id","runonRNA_average_pseudo","totalRNA_average_pseudo")],
+# Extended Data Figure 2c,e
+write.table(genomicregions_complete[,c("unique_id","runonRNA_average_pseudo","chrRNA_average_pseudo","totalRNA_average_pseudo")],
             file="PrismTables/EDFig2c_nascentvstotal_scatterplot.txt",sep="\t",row.names=F,quote=F)
 
+# What's in what figure?
+alldata_RRP40KD_annotated$fig2a <- alldata_RRP40KD_annotated$unique_id %in% 
+    genomicregions_RRP40KDscreen$unique_id
+alldata_RRP40KD_annotated$fig2b <- alldata_RRP40KD_annotated$unique_id %in% 
+    genomicregions_RRP40KDscreen$unique_id[grep('PAS|6to179',genomicregions_RRP40KDscreen$window)]
+alldata_WT_annotated$fig2c <-     # Note: table generated in code block for Figure 1
+    alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[grep('PAS|6to179',genomicregions_complete$window)]
 alldata_WT_annotated$EDfig2c <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id
-
+alldata_WT_annotated$EDfig2d <-   # Note: table generated in code block for Figure 1
+    alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[grepl('PAS|6to179',genomicregions_complete$window) &  is.finite(genomicregions_complete$chrRNA_average_pseudo)]
+alldata_WT_annotated$EDfig2e <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[is.finite(genomicregions_complete$chrRNA_average_pseudo)]
 ```
 
 ```{r Figure 3}
@@ -242,24 +254,24 @@ alldata_WT_annotated$GCperc <- full_library_annotations$GCperc
 genomicregions_complete <- keep_genomicregions(alldata_WT_annotated,complete_only=T,
                                  data_forcomplete=c('runonRNA_average','totalRNA_average','sortseq_average'))
 
-# Export tables for density plot 3b
-write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$category=="randomized_control"])[1:2]),
-            file="PrismTables/3b_controls_densityplot",quote=F,row.names=F)
-write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"])[1:2]),
-            file="PrismTables/3b_mRNAs_6to179_densityplot",quote=F,row.names=F)
-write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="lincRNAs_6to179"])[1:2]),
-            file="PrismTables/3b_lincRNAs_6to179_densityplot",quote=F,row.names=F)
-write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$category=="mRNA_ends"])[1:2]),
-            file="PrismTables/3b_mRNA_ends_densityplot",quote=F,row.names=F)
 # Export tables for density plot 3c
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$category=="randomized_control"])[1:2]),
+            file="PrismTables/3c_controls_densityplot",quote=F,row.names=F)
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"])[1:2]),
+            file="PrismTables/3c_mRNAs_6to179_densityplot",quote=F,row.names=F)
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="lincRNAs_6to179"])[1:2]),
+            file="PrismTables/3c_lincRNAs_6to179_densityplot",quote=F,row.names=F)
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$category=="mRNA_ends"])[1:2]),
+            file="PrismTables/3c_mRNA_ends_densityplot",quote=F,row.names=F)
+# Export tables for density plot 3d
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="uaRNAs_6to179"])[1:2]),
-            file="PrismTables/3c_uaRNAs_6to179_densityplot",quote=F,row.names=F)
+            file="PrismTables/3d_uaRNAs_6to179_densityplot",quote=F,row.names=F)
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$category=="eRNAs"])[1:2]),
-            file="PrismTables/3c_TE_eRNAs_densityplot",quote=F,row.names=F)
+            file="PrismTables/3d_TE_eRNAs_densityplot",quote=F,row.names=F)
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grep('in_SE',genomicregions_complete$category)])[1:2]),
-            file="PrismTables/3c_SE_eRNAs_densityplot",quote=F,row.names=F)
+            file="PrismTables/3d_SE_eRNAs_densityplot",quote=F,row.names=F)
 
-# Analysis for Figure 3d
+# Analysis for Figure 3e
 # Add annotation on AWTAAA being present or not
 full_library_annotations$canonicalPAS <- sapply(full_library$sequence_in_read,function(x){
   str_count(x, "AATAAA")+str_count(x, "aataaa") + str_count(x, "ATTAAA")+str_count(x, "attaaa") }) > 0
@@ -267,10 +279,10 @@ genomicregions_complete$canonicalPAS <- full_library_annotations$canonicalPAS[ma
 
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grepl("eRNA|uaRNA",genomicregions_complete$category)&
                                                         !(genomicregions_complete$canonicalPAS)] )[1:2]),
-            file="PrismTables/3d_sncRNAs_notop2PAS_densityplot",quote=F,row.names=F)
+            file="PrismTables/3e_sncRNAs_notop2PAS_densityplot",quote=F,row.names=F)
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grepl("eRNA|uaRNA",genomicregions_complete$category)&
                                                         genomicregions_complete$canonicalPAS] )[1:2]),
-            file="PrismTables/3d_sncRNAs_withtop2PAS_densityplot",quote=F,row.names=F)
+            file="PrismTables/3e_sncRNAs_withtop2PAS_densityplot",quote=F,row.names=F)
 
 # Tables for Kruskal-Wallis test
 genomic_complete_GCcorr <- widetable_makeandsave(table=genomicregions_complete,data="totalRNA_average_pseudo_GCcorr",
@@ -279,24 +291,10 @@ eRNA_6to179_GCcorr <- widetable_makeandsave(table=genomicregions_complete[genomi
                                     grouping_parameter='category',subset='eRNAs',save=T,keep=T)
 sncRNA_byPAS_GCcorr <- widetable_makeandsave(table=genomicregions_complete[grepl("eRNA|uaRNA",genomicregions_complete$category),],data="totalRNA_average_pseudo_GCcorr",
                                     grouping_parameter='canonicalPAS',subset='sncRNAs',save=T,keep=T)
-# What's in what figure?
-alldata_WT_annotated$fig3a <- 
-  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$category=="randomized_control"][
-                                          is.finite(log(genomicregions_complete$totalRNA_average_pseudo[genomicregions_complete$category=="randomized_control"],2))]
-alldata_WT_annotated$fig3b <- 
-  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% 
-                                                          c('randomized_control','mRNAs_6to179','lincRNAs_6to179','mRNA_ends')]
-alldata_WT_annotated$fig3c <- 
-  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% 
-                                                                c('randomized_control','uaRNAs_6to179','eRNAs_6to179')]
-alldata_WT_annotated$fig3d <- 
-  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[
-                                          grep('control|uaRNA|eRNA',genomicregions_complete$category)]
 
 # Extended Data Figure 3a
 EDfig3a_GCcontent_genomicregions <- widetable_makeandsave(table=genomicregions_all,data="GCperc",
                                     grouping_parameter='group',subset='genomic_all',save=T,keep=T)
-alldata_WT_annotated$EDfig3a <- alldata_WT_annotated$unique_id %in% genomicregions_all$unique_id
 
 # Extended Data Figure 3b/3c
 genomicregions_complete$GCperc_groups <- cut(genomicregions_complete$GCperc,c(-0.1,40,50,60,70,100),labels=c("<41","41-50","51-60","61-70",">70"))
@@ -305,8 +303,6 @@ EDfig3b_data <- widetable_makeandsave(genomicregions_complete[genomicregions_com
                       grouping_parameter='GCperc_groups',subset="randomizedcontrols_complete",keep=F,save=T)
 EDfig3b_data <- widetable_makeandsave(genomicregions_complete[genomicregions_complete$category=="randomized_control",],data="sortseq_average",
                       grouping_parameter='GCperc_groups',subset="randomizedcontrols_complete",keep=F,save=T)
-alldata_WT_annotated$EDfig3b <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$category=="randomized_control"]
-alldata_WT_annotated$EDfig3c <- alldata_WT_annotated$EDfig3b
 
 # Export table for ED Fig 3d
 write.table(cbind(full_library_annotations[match(genomicregions_complete$unique_id[genomicregions_complete$category=="randomized_control"],
@@ -314,10 +310,27 @@ write.table(cbind(full_library_annotations[match(genomicregions_complete$unique_
                                            c("unique_id","CpGnr")],
          "totalRNA_log2"=log(genomicregions_complete$totalRNA_average_pseudo[genomicregions_complete$category=="randomized_control"],2)),
           file="PrismTables/EDFig3d_CpGvsTotalRNA_complete_scatterplot.txt",sep="\t",row.names=F,quote=F)
+
+# What's in what figure?
+alldata_WT_annotated$fig3a <- 
+  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$category=="randomized_control"][
+                                          is.finite(log(genomicregions_complete$totalRNA_average_pseudo[genomicregions_complete$category=="randomized_control"],2))]
+alldata_WT_annotated$fig3c <- 
+  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% 
+                                                          c('randomized_control','mRNAs_6to179','lincRNAs_6to179','mRNA_ends')]
+alldata_WT_annotated$fig3d <- 
+  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% 
+                                                                c('randomized_control','uaRNAs_6to179','eRNAs_6to179')]
+alldata_WT_annotated$fig3e <- 
+  alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[
+                                          grep('control|uaRNA|eRNA',genomicregions_complete$category)]
+alldata_WT_annotated$EDfig3a <- alldata_WT_annotated$unique_id %in% genomicregions_all$unique_id
+alldata_WT_annotated$EDfig3b <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$category=="randomized_control"]
+alldata_WT_annotated$EDfig3c <- alldata_WT_annotated$EDfig3b
 alldata_WT_annotated$EDfig3d <- alldata_WT_annotated$EDfig3b
 ```
 
-```{r Figure 4a}
+```{r Figure 4}
 library(Biostrings) # v 2.50.2
 
 top_mRNA6to179_10perc_totalRNA_seqs <- get_write_fastafiles(ids=genomicregions_complete$unique_id[
@@ -335,10 +348,8 @@ bottom_mRNA6to179_50perc_totalRNA_seqs <- get_write_fastafiles(ids=genomicregion
                                                             genomicregions_complete$group=="mRNAs_6to179"],0.5) ],
                                                   name="bottom_mRNA6to179_10perc_GCcorrtotalRNA_topoverbottom_seqs")
 
-```
 
-```{r Figure 4b}
-# Same distribution for randomized controls as in Figure 3
+# Figure 4b (same distribution for randomized controls as in Figure 3)
 genomicregions_complete$splicing_status_nascent <- full_library_annotations$splicing_status_nascent[match(genomicregions_complete$unique_id,full_library_annotations$unique_id)]
 
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179" &
@@ -354,10 +365,7 @@ write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_G
 Fig4b_forstatistics <- widetable_makeandsave(genomicregions_complete[genomicregions_complete$group=="mRNAs_6to179",],data="totalRNA_average_pseudo_GCcorr",
                                              grouping_parameter="splicing_status_nascent",subset="mRNAs6to179",keep=T,save=T)
 
-alldata_WT_annotated$fig4b <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% c("randomized_control","mRNAs_6to179")]
-```
-
-```{r Figure 4c-e}
+## Figure 4c, e: Analysis of introns in library 
 WTintrondata_noNA <- cbind(full_library[,c('unique_id','name','fasta_names','category','barcode',"CDS_start")],
                            alldata_WTscreens[,!(grepl('average',colnames(alldata_WTscreens)))])[grepl('introns',full_library$category),]
 WTintrondata_noNA <- WTintrondata_noNA[rowSums(WTintrondata_noNA[,sapply(WTintrondata_noNA,is.numeric)],na.rm=T)>0,]
@@ -373,13 +381,10 @@ intron_results_complete <- intron_results_all_unfiltered[
 intron_table <- intron_results_complete
 intron_table[,1] <- as.character(intron_table[,1])
 
-# Fig 4c and supplement
+# Fig 4c and Extended Data Figure 4
 fig4c_EDfig4_data <- widetable_makeandsave_multi(x=intron_table[grepl('nobc',intron_results_complete$name),],
                                                 data_types=c("runonRNA_average","totalRNA_average","sortseq_average"),
                                                 grouping='splicing_group_runonRNA',subset_for_name='originalintrons_nobc',save_table=T,print_tables=T)
-
-intron_table$fig4c <- grepl('nobc',intron_results_complete$name)
-intron_table$EDfig4 <- grepl('nobc',intron_results_complete$name)
 
 # Fig 4e
 ProudfootPAS_intronsubset <- intron_table$name[intron_table$mutstatus=="ProudfootPAS_inserted"] # Introns in which Pf PAS was inserted
@@ -403,13 +408,16 @@ ProudfootPAS_introntable <- ProudfootPAS_introntable[order(ProudfootPAS_intronta
 fig4e_data <-  widetable_makeandsave(table=ProudfootPAS_introntable,data="totalRNA_average",
                                     grouping_parameter='mutstatus',subset='introns_Proudfoot',
                                     limits=c(0.002,100), save=T,keep=T)
-
+                                    
+## What is in which figure?                  
+alldata_WT_annotated$fig4b <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[genomicregions_complete$group %in% c("randomized_control","mRNAs_6to179")]
+intron_table$fig4c <- grepl('nobc',intron_results_complete$name)
 intron_table$fig4e <- intron_table$name_mutstatus %in% ProudfootPAS_introntable$name_mutstatus
-
+intron_table$EDfig4 <- grepl('nobc',intron_results_complete$name)
 ```
 
-Figure 5a, start with filtering for spliced and effective mutant
-```{r Figure 5a and ED5a-b}
+```{r Figure 5}
+## Start with filtering for spliced wild-type introns in which mutations effectively disrupt splicing
 introns_splicedoriginal_byrunon_averages <- 
           intron_table[intron_table$name %in% intron_table$name[grepl('original_bc',intron_table$group) & intron_table$splicing_group_runonRNA==">0.3"] &
                          !grepl('Proudfoot',intron_table$mutstatus),]
@@ -430,15 +438,12 @@ keep_effectivemutants_in_splicedoriginal_byrunon_averages <-
 
 effectivemutants_in_splicedoriginal_byrunon_averages <- introns_splicedoriginal_byrunon_averages[keep_effectivemutants_in_splicedoriginal_byrunon_averages,]
 
-fig5a_data <- widetable_makeandsave_multi(effectivemutants_in_splicedoriginal_byrunon_averages,
+# Figure 5a and Extended Data Fig 5a-b
+fig5a_EDifg5a_data <- widetable_makeandsave_multi(effectivemutants_in_splicedoriginal_byrunon_averages,
                                           grouping="mutstatus",subset_for_name="spliced_originals_effective_mutants_byrunon")
-intron_table$fig5a <- intron_table$name_mutstatus %in% effectivemutants_in_splicedoriginal_byrunon_averages$name_mutstatus
-intron_table$EDfig5a <- intron_table$fig5a
 
-# ED Fig 5b (no PAS)
 full_library_annotations$anyPAS <- grepl("AATAAA|ATTAAA|TATAAA|AGTAAA|AAGAAA|CATAAA|AATATA|AATACA|GATAAA|TTTAAA",
                                          full_library_annotations$sequence,ignore.case=T)
-
 effectivemutants_in_splicedoriginal_byrunon_averages_noPAS <- 
   effectivemutants_in_splicedoriginal_byrunon_averages[effectivemutants_in_splicedoriginal_byrunon_averages$name %in%
                                                        full_library_annotations$name[!(full_library_annotations$anyPAS) & 
@@ -448,9 +453,11 @@ EDfig5b_data <- widetable_makeandsave(table=effectivemutants_in_splicedoriginal_
                                       data="totalRNA_average", grouping_parameter='mutstatus',
                                       subset='spliced_originals_effective_mutants_byrunon_noPAS',
                                       save=T,keep=T)
-```
 
-```{r Fig 5c and ED Fig 5d}
+
+## Fig 5c, ED Fig 5d, ED Fig 5e
+# First, a MOODS search with a very lenient threshold was used to find anything resembling a 5'SS, this was filtered down to only include matches on the given strand. 
+# The sequences of these matches are exported and run through the MaxEnt algorithm (online). 
 MOODS_5ss_weak <- read.csv(
   'input/MOODS_SD_output_p0.05',
   stringsAsFactors=F,header=F,col.names=c('unique_id','motif','start_pos','strand','score','sequence','NA')
@@ -464,6 +471,8 @@ writeXStringSet(MOODS_5ssSeq_all,"output/MOODS_5ssSeqs_all.fa")
 MOODScalls_MaxEntscores <- read.delim('input/MOODS_5ssSeqs_all_MaxEntscores.txt')
 MOODS_5ss_weak_plusstrand$MaxEnt <- MOODScalls_MaxEntscores$MAXENT
 
+# For each insert, this assigns the highest MaxEnt score of all 5'SS motif matches in it. 
+# Inserts are categorized into three groups, where anything under a MaxEnt score of 5 is not considered a real 5'SS. A score of 5-10 is considered medium, >10 is considered strong.
 maxMaxEntperseq <- sapply(unique(MOODS_5ss_weak_plusstrand$unique_id),function(id) {
   which(MOODS_5ss_weak_plusstrand$unique_id==id&
           MOODS_5ss_weak_plusstrand$MaxEnt==max(MOODS_5ss_weak_plusstrand$MaxEnt[MOODS_5ss_weak_plusstrand$unique_id==id]))[1]
@@ -472,12 +481,14 @@ maxMaxEntperseq <- sapply(unique(MOODS_5ss_weak_plusstrand$unique_id),function(i
 full_library_annotations$maxMAXENTscore_postMOODS <- MOODS_5ss_weak_plusstrand$MaxEnt[
                       maxMaxEntperseq[match(full_library_annotations$unique_id,names(maxMaxEntperseq))]
                       ]
+full_library_annotations$maxMAXENTscore_postMOODS[is.na(full_library_annotations$maxMAXENTscore_postMOODS)] <- -20
+
 full_library_annotations$MaxEnt5ssstrength <- cut(full_library_annotations$maxMAXENTscore_postMOODS,
                                                   c(-25,4.99999999,10,25),labels=c("none","medium","strong"))
 
 genomicregions_complete$MaxEnt5ssstrength <- full_library_annotations$MaxEnt5ssstrength[match(genomicregions_complete$unique_id,full_library_annotations$unique_id)]
 
-# Extended data fig 5c
+# Fig 5c
 write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"&
                                                                                       genomicregions_complete$splicing_status_nascent=="unspliced"&
                                                                                       genomicregions_complete$MaxEnt5ssstrength=="none"])[1:2]),
@@ -508,11 +519,58 @@ write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_G
                                                                                       genomicregions_complete$MaxEnt5ssstrength=="strong"])[1:2]),
             file="PrismTables/ED5d_sncRNAs_unspliced_strong5SS_densityplot.txt",quote=F,row.names=F)
 
-fig5c_data_forstatistics <- widetable_makeandsave(genomicregions_complete[grepl("eRNA|uaRNA",genomicregions_complete$category) & genomicregions_complete$splicing_status_nascent=="unspliced",],
+EDfig5d_data_forstatistics <- widetable_makeandsave(genomicregions_complete[grepl("eRNA|uaRNA",genomicregions_complete$category) & genomicregions_complete$splicing_status_nascent=="unspliced",],
                                                   data="totalRNA_average_pseudo_GCcorr", grouping_parameter='MaxEnt5ssstrength',subset="sncRNAs_unspliced",keep=F,save=T)
-```
 
-```{r Figure 5d and ED5e}
+
+## Check effect of multiple 5'SSs (MaxEnt >= 5)
+MOODS_5ss_weak_plusstrand_5plus <- MOODS_5ss_weak_plusstrand[MOODS_5ss_weak_plusstrand$MaxEnt>=5,]
+
+full_library_annotations$nr5SS <- sapply(full_library_annotations$unique_id,function(id){
+                                    sum(MOODS_5ss_weak_plusstrand_5plus$unique_id==id)
+                                  })
+
+genomicregions_complete$nr5SS <- full_library_annotations$nr5SS[
+                                  match(genomicregions_complete$unique_id,full_library_annotations$unique_id)]
+
+# Extended Data Figure 5e
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"&
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS==0])[1:2]),
+            file="PrismTables/EDfig5e_mRNAs_6to179_unspliced_0_5SS_densityplot.txt",quote=F,row.names=F)
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"&
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS==1])[1:2]),
+            file="PrismTables/EDfig5e_mRNAs_6to179_unspliced_1_5SS_densityplot.txt",quote=F,row.names=F)
+
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[genomicregions_complete$group=="mRNAs_6to179"&
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS>1])[1:2]),
+            file="PrismTables/EDfig5e_mRNAs_6to179_unspliced_2ormore_5SS_densityplot.txt",quote=F,row.names=F)
+
+
+EDfig5e_mRNAs_data_forstatistics <- widetable_makeandsave(genomicregions_complete[genomicregions_complete$group=="mRNAs_6to179"&genomicregions_complete$splicing_status_nascent=="unspliced",],
+                                                  data="totalRNA_average_pseudo_GCcorr", grouping_parameter='nr5SS',subset="mRNAs_6to179_unspliced",keep=F,save=T)
+
+
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grepl("eRNA|uaRNA",genomicregions_complete$category) &
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS==0])[1:2]),
+            file="PrismTables/EDfig5e_sncRNAs_6to179_unspliced_0_5SS_densityplot.txt",quote=F,row.names=F)
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grepl("eRNA|uaRNA",genomicregions_complete$category) &
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS==1])[1:2]),
+            file="PrismTables/EDfig5e_sncRNAs_6to179_unspliced_1_5SS_densityplot.txt",quote=F,row.names=F)
+
+write.table(data.frame(density(genomicregions_complete$totalRNA_average_pseudo_GCcorr[grepl("eRNA|uaRNA",genomicregions_complete$category) &
+                                                                                      genomicregions_complete$splicing_status_nascent=="unspliced"&
+                                                                                      genomicregions_complete$nr5SS>1])[1:2]),
+            file="PrismTables/EDfig5e_sncRNAs_6to179_unspliced_2ormore_5SS_densityplot.txt",quote=F,row.names=F)
+
+EDfig5e_sncRNAs_data_forstatistics <- widetable_makeandsave(genomicregions_complete[grepl("eRNA|uaRNA",genomicregions_complete$category)&genomicregions_complete$splicing_status_nascent=="unspliced",],
+                                                  data="totalRNA_average_pseudo_GCcorr", grouping_parameter='nr5SS',subset="sncRNAs_6to179_unspliced",keep=F,save=T)
+
+### 10nt 5'SSs in random backgrounds
 WTscreens_seqs_in_background <- alldata_WT_annotated[grepl('background|TTseq|Kozak|HIV_LTR_TAR|hammerhead',alldata_WT_annotated$category),
                                                      -grep('fasta|barcode|spliced|X5ss|X3ss|coding|CDS_start|GCperc|pseudo|fig',
                                                            colnames(alldata_WT_annotated))]
@@ -539,6 +597,7 @@ splicedonors_in_background_averages[,grepl('average_bgnorm|splicingeff_runon_ave
                                           grepl('average_bgnorm|splicingeff_runon_average',colnames(splicedonors_in_background))],
                na.rm=T)
     }))
+    
 for (experiment in c("runonRNA","totalRNA","sortseq")) {
     splicedonors_in_background_averages[,paste("repl",experiment,sep="_")] <-
       apply(splicedonors_in_background_averages,MAR=1,function(x){
@@ -562,11 +621,22 @@ splicedonors_in_background_averages_MaxEntof5 <- splicedonors_in_background_aver
 
 splicedonors_violinplotdata <- widetable_makeandsave_multi(x=splicedonors_in_background_averages_MaxEntof5[which(splicedonors_in_background_averages_MaxEntof5$splicingeff_runon_average<0.03),],
                                                           data_types=c('runonRNA_average_bgnorm','totalRNA_average_bgnorm','sortseq_average_bgnorm'),
-                                                          grouping='splicedonor', subset_for_name='splicedonors_unspliced')
+                                                          grouping='splicedonor', subset_for_name='splicedonors_unspliced',print_tables=T
 
-splicedonors_in_background_averages$fig5d <- splicedonors_in_background_averages$name_splicedonor %in%  
-  splicedonors_in_background_averages_MaxEntof5$name_splicedonor[which(splicedonors_in_background_averages_MaxEntof5$splicingeff_runon_average<0.03)]
+# What is in which figure
+intron_table$fig5a <- intron_table$name_mutstatus %in% effectivemutants_in_splicedoriginal_byrunon_averages$name_mutstatus
+alldata_WT_annotated$fig5c <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[
+  genomicregions_complete$group=="mRNAs_6to179"&genomicregions_complete$splicing_status_nascent=="unspliced"]
+splicedonors_in_background_averages$fig5d <- splicedonors_in_background_averages$name_splicedonor %in% 
+  splicedonors_in_background_averages_MaxEntof5$name_splicedonor[
+      which(splicedonors_in_background_averages_MaxEntof5$splicingeff_runon_average<0.03)]
 splicedonors_in_background_averages$EDfig5e <- splicedonors_in_background_averages$fig5d
+intron_table$EDfig5a <- intron_table$fig5a
+intron_table$EDfig5b <- intron_table$name_mutstatus %in% effectivemutants_in_splicedoriginal_byrunon_averages_noPAS$name_mutstatus
+alldata_WT_annotated$EDfig5d <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[
+                                                                      grepl("eRNA|uaRNA",genomicregions_complete$category) &
+                                                                              genomicregions_complete$splicing_status_nascent=="unspliced"]
+splicedonors_in_background_averages$EDfig5f <- splicedonors_in_background_averages$fig5d
 ```
 
 ```{r write final annotated tables}
@@ -574,17 +644,17 @@ write.table(full_library_annotations,'output/HV20210620_full_library_annotations
 write.table(cbind(alldata_WTscreens,
                   "totalRNA_average_pseudo_GCcorr"=alldata_WT_annotated$totalRNA_average_pseudo_GCcorr,
                   alldata_WT_annotated[,grep('fig',colnames(alldata_WT_annotated))]),
-            'output/HV20210620_data_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=T)
+            'output/data_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=T)
 write.table(cbind(alldata_14Rikscreens,
                   alldata_14Rik_annotated[,grep('fig',colnames(alldata_14Rik_annotated))]),
-            'output/HV20210620_data_14Rikscreens_wfigures.txt',sep="\t",quote=F,row.names=T)
+            'output/data_14Rikscreens_wfigures.txt',sep="\t",quote=F,row.names=T)
 write.table(cbind(alldata_RRP40KDscreens,
                   alldata_RRP40KD_annotated[,grep('fig',colnames(alldata_RRP40KD_annotated))]),
-            'output/HV20210620_data_RRP40KDscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=T)
+            'output/data_RRP40KDscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=T)
 write.table(intron_table,
-            'output/HV20210620_averaged_introns_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=F)
+            'output/averaged_introns_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=F)
 write.table(splicedonors_in_background_averages,
-            'output/HV20210620_averaged_bgnorm_splicedonors_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=F)
+            'output/averaged_bgnorm_splicedonors_WTscreens_Oct4uaRNA_wfigures.txt',sep="\t",quote=F,row.names=F)
 
 full_library_annotations_readme <- c(
   "unique_id"="Unique identifier for each insert in library sequence",
