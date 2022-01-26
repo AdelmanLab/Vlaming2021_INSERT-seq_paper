@@ -8,7 +8,12 @@ library(scales) # v 1.0.0
 ```
 
 ```{r read in counts}
-counts_RNA <- read.table('../Mapping/output/counts_RNA_untreated_uaRNAscreens.txt',stringsAsFactors=F)
+
+
+
+
+counts_RNA <- read.table('../Mapping/output/counts_RNA_untreated_uaRNAscreens_all.txt',stringsAsFactors=F)
+
 counts_RNA_scaled <- as.data.frame(scale(counts_RNA[-nrow(counts_RNA),],
                                          colSums(counts_RNA), center=F))
 
@@ -63,14 +68,17 @@ plot(log(RNA_over_gDNA$totalRNA_2_total,10),log(RNA_over_gDNA$totalRNA_3_total,1
 plot(log(RNA_over_gDNA$totalRNA_2_total,10),log(RNA_over_gDNA$totalRNA_4_total,10),pch=16,col=alpha(1,.2),cex=.8,
      xlab="total-RNA exp2 (log10)",ylab="total-RNA exp4 (log10)")
 
+plot(log(RNA_over_gDNA$chrRNA_2_total,10),log(RNA_over_gDNA$chrRNA_3_total,10),pch=16,col=alpha(1,.2),cex=.8,
+     xlab="chr-RNA exp2 (log10)",ylab="chr-RNA exp3 (log10)")
+     
 plot(log(RNA_over_gDNA$runon_4_total,10),log(RNA_over_gDNA$runon_5_total,10),pch=16,col=alpha(1,.2),cex=.8,
-     xlab="runon-RNA exp4 (log10)",ylab="ruon-RNA exp5 (log10)")
-
+     xlab="runon-RNA exp4 (log10)",ylab="runon-RNA exp5 (log10)")
+     
 ```
 
 Set median of randomized controls to 1
 ```{r Norm to randomized controls}
-load('../R analysis/input/HV20200429_full_library.RData')
+load('input/HV20200429_full_library.RData')
 controls <- full_library$unique_id[full_library$category=="randomized_control"]
 
 RNA_over_ctrl <- RNA_over_gDNA
@@ -91,6 +99,10 @@ splicingefficiencies <- data.frame("totalRNA_1_splicingefficiency"=
                                      RNA_over_ctrl$totalRNA_3_splicedtotal / RNA_over_ctrl$totalRNA_3_total,
                                    "totalRNA_4_splicingefficiency"=
                                      RNA_over_ctrl$totalRNA_4_splicedtotal / RNA_over_ctrl$totalRNA_4_total,
+                                   "chrRNA_2_splicingefficiency"=
+                                     RNA_over_ctrl$chrRNA_2_splicedtotal / RNA_over_ctrl$chrRNA_2_total,
+                                   "chrRNA_3_splicingefficiency"=
+                                     RNA_over_ctrl$chrRNA_3_splicedtotal / RNA_over_ctrl$chrRNA_3_total,
                                    "runonRNA_4_splicingefficiency"=
                                      RNA_over_ctrl$runon_4_splicedtotal / RNA_over_ctrl$runon_4_total,
                                    "runonRNA_5_splicingefficiency"=
@@ -124,10 +136,10 @@ plot(log(RNA_over_ctrl_pseudo$totalRNA_2_total,2),
      log(RNA_over_ctrl_pseudo$totalRNA_4_total,2),
      pch=16,cex=0.6,col=alpha(1,.3),xlim=c(-6.5,6),ylim=c(-6.5,6.5),
      main="Total-RNA: 2 vs 4",xlab="Total-RNA repl 2 (log2)",ylab="Total-RNA repl 4 (log2)")
-plot(log(RNA_over_ctrl_pseudo$totalRNA_4_total,2),
-     log(RNA_over_ctrl_pseudo$runon_4_total,2),
+plot(log(RNA_over_ctrl_pseudo$chrRNA_2_total,2),
+     log(RNA_over_ctrl_pseudo$chrRNA_3_total,2),
      pch=16,cex=0.6,col=alpha(1,.3),
-     main="total-RNA vs run-on repl4",xlab="Total (log2)",ylab="Run-on (log2)")
+     main="chr-RNA: 2 vs 3",xlab="Chr-RNA replicate 1 (exp2) (log2)",ylab="Chr-RNA replicate 2 (exp3) (log2)")
 plot(log(RNA_over_ctrl_pseudo$runon_4_total,2),
      log(RNA_over_ctrl_pseudo$runon_5_total,2),
      pch=16,cex=0.6,col=alpha(1,.3),
@@ -144,26 +156,43 @@ RNA_over_ctrl_averages$totalRNA_average <-
     rowMeans(RNA_over_ctrl_averages[,grep('totalRNA_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
 RNA_over_ctrl_averages$totalRNA_average <- RNA_over_ctrl_averages$totalRNA_average /
                                       median(RNA_over_ctrl_averages[controls,"totalRNA_average"],na.rm=T)
+RNA_over_ctrl_averages$chrRNA_average <-
+    rowMeans(RNA_over_ctrl_averages[,grep('chrRNA_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$chrRNA_average <- RNA_over_ctrl_averages$chrRNA_average /
+                                      median(RNA_over_ctrl_averages[controls,"chrRNA_average"],na.rm=T)
 RNA_over_ctrl_averages$runonRNA_average <-
           rowMeans(RNA_over_ctrl_averages[,grep('runon_._total',colnames(RNA_over_ctrl_averages))],na.rm=T)
 RNA_over_ctrl_averages$runonRNA_average <- RNA_over_ctrl_averages$runonRNA_average /
                                      median(RNA_over_ctrl_averages[controls,"runonRNA_average"],na.rm=T)
 RNA_over_ctrl_averages$splicingeff_average <-
   rowMeans(RNA_over_ctrl_averages[,grep('totalRNA_._splicingefficiency',colnames(RNA_over_ctrl_averages))],na.rm=T)
+RNA_over_ctrl_averages$splicingeff_chr_average <-
+  rowMeans(RNA_over_ctrl_averages[,grep('chrRNA_._splicingefficiency',colnames(RNA_over_ctrl_averages))],na.rm=T)
 RNA_over_ctrl_averages$splicingeff_runon_average <-
   rowMeans(RNA_over_ctrl_averages[,grep('runonRNA_._splicingefficiency',colnames(RNA_over_ctrl_averages))],na.rm=T)
 RNA_over_ctrl_averages <- RNA_over_ctrl_averages[,grep('average',colnames(RNA_over_ctrl_averages))]
 
 # Correlations
+cor(RNA_over_ctrl_averages$totalRNA_average,RNA_over_ctrl_averages$chrRNA_average,use="complete.obs",method="spearman")
 cor(RNA_over_ctrl_averages$totalRNA_average,RNA_over_ctrl_averages$runonRNA_average,use="complete.obs",method="spearman")
+cor(RNA_over_ctrl_averages$chrRNA_average,RNA_over_ctrl_averages$runonRNA_average,use="complete.obs",method="spearman")
 
 RNA_over_ctrl_averages_pseudo <- RNA_over_ctrl_averages
 RNA_over_ctrl_averages_pseudo[,grep('RNA',colnames(RNA_over_ctrl_averages))][
                     RNA_over_ctrl_averages[,grep('RNA',colnames(RNA_over_ctrl_averages))]< 5e-3] <- 5e-3
+		    
+plot(log(RNA_over_ctrl_averages_pseudo$chrRNA_average,10),
+     log(RNA_over_ctrl_averages_pseudo$totalRNA_average,10),
+     pch=16,cex=0.6,col=alpha(1,.15),xlim=c(-2.5,2),ylim=c(-2.5,2),
+     main="Chr-RNA vs Total-RNA",xlab="Chr-RNA average (log10)",ylab="Total-RNA average (log10)")
 plot(log(RNA_over_ctrl_averages_pseudo$runonRNA_average,10),
      log(RNA_over_ctrl_averages_pseudo$totalRNA_average,10),
      pch=16,cex=0.6,col=alpha(1,.15),xlim=c(-2.5,2),ylim=c(-2.5,2),
      main="Run-on-RNA vs Total-RNA",xlab="Run-on-RNA average (log10)",ylab="Total-RNA average (log10)")
+plot(log(RNA_over_ctrl_averages_pseudo$runonRNA_average,10),
+     log(RNA_over_ctrl_averages_pseudo$chrRNA_average,10),
+     pch=16,cex=0.6,col=alpha(1,.15),xlim=c(-2.5,2),ylim=c(-2.5,2),
+     main="Run-on-RNA vs Chr-RNA",xlab="Run-on-RNA average (log10)",ylab="Chr-RNA average (log10)")
 ```
 
 Save
