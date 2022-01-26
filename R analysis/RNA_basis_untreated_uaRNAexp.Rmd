@@ -8,10 +8,6 @@ library(scales) # v 1.0.0
 ```
 
 ```{r read in counts}
-
-
-
-
 counts_RNA <- read.table('../Mapping/output/counts_RNA_untreated_uaRNAscreens_all.txt',stringsAsFactors=F)
 
 counts_RNA_scaled <- as.data.frame(scale(counts_RNA[-nrow(counts_RNA),],
@@ -72,8 +68,7 @@ plot(log(RNA_over_gDNA$chrRNA_2_total,10),log(RNA_over_gDNA$chrRNA_3_total,10),p
      xlab="chr-RNA exp2 (log10)",ylab="chr-RNA exp3 (log10)")
      
 plot(log(RNA_over_gDNA$runon_4_total,10),log(RNA_over_gDNA$runon_5_total,10),pch=16,col=alpha(1,.2),cex=.8,
-     xlab="runon-RNA exp4 (log10)",ylab="runon-RNA exp5 (log10)")
-     
+     xlab="runon-RNA exp4 (log10)",ylab="runon-RNA exp5 (log10)") 
 ```
 
 Set median of randomized controls to 1
