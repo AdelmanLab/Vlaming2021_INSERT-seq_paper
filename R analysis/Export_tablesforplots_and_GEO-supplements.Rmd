@@ -630,12 +630,12 @@ alldata_WT_annotated$fig5c <- alldata_WT_annotated$unique_id %in% genomicregions
 splicedonors_in_background_averages$fig5d <- splicedonors_in_background_averages$name_splicedonor %in% 
   splicedonors_in_background_averages_MaxEntof5$name_splicedonor[
       which(splicedonors_in_background_averages_MaxEntof5$splicingeff_runon_average<0.03)]
-splicedonors_in_background_averages$EDfig5e <- splicedonors_in_background_averages$fig5d
 intron_table$EDfig5a <- intron_table$fig5a
 intron_table$EDfig5b <- intron_table$name_mutstatus %in% effectivemutants_in_splicedoriginal_byrunon_averages_noPAS$name_mutstatus
 alldata_WT_annotated$EDfig5d <- alldata_WT_annotated$unique_id %in% genomicregions_complete$unique_id[
                                                                       grepl("eRNA|uaRNA",genomicregions_complete$category) &
                                                                               genomicregions_complete$splicing_status_nascent=="unspliced"]
+alldata_WT_annotated$EDfig5e <- alldata_WT_annotated$fig5c | alldata_WT_annotated$EDfig5d
 splicedonors_in_background_averages$EDfig5f <- splicedonors_in_background_averages$fig5d
 ```
 
